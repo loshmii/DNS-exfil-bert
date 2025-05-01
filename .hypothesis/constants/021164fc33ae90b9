@@ -1,0 +1,4 @@
+# file: C:\Users\tomic\ml\projects\dns_exfil_mbert\src\data_pipeline\tokenizers\char_dns\v0_1\char_tokenizer.py
+# hypothesis_version: 6.131.9
+
+['XN--example.com', '[CLS]', '[MASK]', '[PAD]', '[SEP]', '[UNK]', '\\s+', '__main__', 'a', 'attention_mask', 'char_tok_config.yaml', 'cls_token', 'example.com', 'helloworld', 'input_ids', 'isolated', 'longest_first', 'mask_token', 'pad_token', 'r', 'right', 'sep_token', 'tokenizer.json', 'unk_token', 'utf-8']

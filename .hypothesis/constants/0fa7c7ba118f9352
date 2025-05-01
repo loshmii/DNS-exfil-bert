@@ -1,0 +1,4 @@
+# file: C:\Users\tomic\ml\projects\dns_exfil_mbert\src\data_pipeline\tokenizers\char_dns\v0_1\char_tokenizer.py
+# hypothesis_version: 6.131.9
+
+['\\s+', '__main__', 'a', 'attention_mask', 'cls_token', 'helloworld', 'input_ids', 'isolated', 'longest_first', 'mask_token', 'pad_token', 'right', 'sep_token', 'unk_token']

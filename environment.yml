@@ -1,0 +1,24 @@
+name: dns-bert
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - cudatoolkit=11.7
+  - pytorch>=2.0.0
+  - numpy
+  - tqdm
+  - tokenizers
+  - sentencepiece
+  - datasets
+  - transformers>=4.30.0
+  - wandb
+  - hypothesis
+  - pytest
+  - pytest-benchmark
+  - black
+  - flake8
+  - mypy
+  - pytest-cov
+  - pip

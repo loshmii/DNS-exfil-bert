@@ -1,0 +1,4 @@
+# file: C:\Users\tomic\ml\projects\dns_exfil_mbert\src\data_pipeline\tokenizers\char_dns\v0_1\config\CharTokConfig.py
+# hypothesis_version: 6.131.9
+
+[256, 'CharTokConfig', '[CLS]', '[MASK]', '[PAD]', '[SEP]', '[UNK]', '__main__', 'alphabet', 'cls_token', 'config', 'mask_token', 'max_length', 'pad_token', 'padding', 'sep_token', 'special_tokens', 'truncation', 'unk_token', 'utf-8']
