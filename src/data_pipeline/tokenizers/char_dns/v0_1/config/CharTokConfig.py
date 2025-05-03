@@ -70,7 +70,7 @@ class CharTokConfig:
 
 
 def get_config_for_char_tok(
-    config_src: Union[str, Path, Dict[str, Any]]
+    config_src: Union[str, Path, Dict[str, Any]],
 ) -> CharTokConfig:
     if isinstance(config_src, dict):
         return CharTokConfig(config_src)
