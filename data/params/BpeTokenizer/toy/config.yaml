@@ -1,0 +1,16 @@
+alphabet: abcdefghijklmnopqrstuvwxyz0123456789-._
+cls_token: '[CLS]'
+mask_token: '[MASK]'
+max_length: 256
+pad_token: '[PAD]'
+padding: true
+sep_token: '[SEP]'
+special_tokens:
+  cls_token: '[CLS]'
+  mask_token: '[MASK]'
+  pad_token: '[PAD]'
+  sep_token: '[SEP]'
+  unk_token: '[UNK]'
+truncation: true
+unk_token: '[UNK]'
+vocab_size: 50

@@ -58,7 +58,7 @@ class BpeTokenizer(PreTrainedTokenizerFast):
         tok_obj.pre_tokenizer = pre_tokenizers.Sequence(
             [
                 pre_tokenizers.WhitespaceSplit(),
-                pre_tokenizers.Punctuation(),
+                pre_tokenizers.Punctuation(behavior="isolated"),
             ]
         )
 
@@ -116,38 +116,37 @@ class BpeTokenizer(PreTrainedTokenizerFast):
         path = Path(save_dir).absolute()
         path.mkdir(parents=True, exist_ok=True)
         tok.save_pretrained(path)
+        cfg.to_file(path / "config.yaml")
 
         return tok
 
     @classmethod
     def from_pretrained(
         cls,
-        cfg: BpeTokConfig,
         path: Union[str, Path],
     ) -> "BpeTokenizer":
+        path = Path(path).resolve()
         core = PreTrainedTokenizerFast.from_pretrained(path).backend_tokenizer
+        cfg = BpeTokConfig.from_file(path / "config.yaml")
         return cls(cfg, core)
 
 
 if __name__ == "__main__":
-    cfg = BpeTokConfig(
-        "C:/Users/tomic/ml/projects/dns_exfil_mbert"
-        "/configs/bpe_tok_toy.yaml"
-    )
+    DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
+
+    cfg = BpeTokConfig(DIR / "configs" / "bpe_tok_toy.yaml")
     print(cfg.alphabet)
+
     tok = BpeTokenizer.from_scratch(
         cfg,
         files=[
-            "C:/Users/tomic/ml/projects/dns_exfil_mbert"
-            "/data/toy/BPETrainToy.txt",
+            DIR / "data" / "toy" / "BPETrainToy.txt",
         ],
-        save_dir="C:/Users/tomic/ml/projects/dns_exfil_mbert"
-        "/data/params/BpeTokenizer/toy",
+        save_dir=DIR / "data" / "params" / "BpeTokenizer" / "toy",
     )
+
     loaded_tok = BpeTokenizer.from_pretrained(
-        cfg,
-        path="C:/Users/tomic/ml/projects/dns_exfil_mbert"
-        "/data/params/BpeTokenizer/toy",
+        DIR / "data" / "params" / "BpeTokenizer" / "toy",
     )
     sample = "xn--example.com"
     assert tok(sample) == loaded_tok(sample)

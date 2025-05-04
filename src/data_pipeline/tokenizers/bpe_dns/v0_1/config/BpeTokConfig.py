@@ -5,9 +5,8 @@ from pathlib import Path
 from jsonschema import validate as js_validate, ValidationError
 from omegaconf import DictConfig, OmegaConf
 
-SCHEMA_PATH = Path(
-    "C:/Users/tomic/ml/projects/dns_exfil_mbert" "/configs/bpe_tok_schema.json"
-)
+DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
+SCHEMA_PATH = DIR / "configs" / "bpe_tok_schema.json"
 _schema = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 DEFAULTS: Dict[str, Any] = {
@@ -44,11 +43,15 @@ class BpeTokConfig:
                 raise ValueError(
                     f"Config file {path} is not a valid YAML file."
                 )
+        
+        data = {**DEFAULTS, **data}
         try:
             js_validate(data, _schema)
         except ValidationError as e:
-            source = path if 'path' in locals() else "in-memory dictConfig"
-            raise ValueError(f"Config {source!r} failed schema validation: {e.message}")
+            source = path if "path" in locals() else "in-memory dictConfig"
+            raise ValueError(
+                f"Config {source!r} failed schema validation: {e.message}"
+            )
         object.__setattr__(self, "_cfg", data)
 
     def __getattr__(self, name: str) -> Any:
@@ -105,26 +108,23 @@ def get_config_for_bpe_tok(config_src: Union[str, Path, Dict[str, Any]]):
 
 
 if __name__ == "__main__":
+    BASE_PATH = (
+        Path(__file__)
+        .resolve()
+        .parent.parent.parent.parent.parent.parent.parent
+    )
     config_from_file_str = BpeTokConfig(
-        "C:/Users/tomic/ml/projects/" "dns_exfil_mbert/configs/" "bpe_tok.yaml"
+        str(BASE_PATH / "configs" / "bpe_tok.yaml")
     )
-    config_from_Path = BpeTokConfig(
-        Path(
-            "C:/Users/tomic/ml/projects/"
-            "dns_exfil_mbert/configs/"
-            "bpe_tok.yaml"
-        )
-    )
+    config_from_Path = BpeTokConfig(BASE_PATH / "configs" / "bpe_tok.yaml")
     yaml_dict = yaml.safe_load(
-        Path(
-            "C:/Users/tomic/ml/projects/"
-            "dns_exfil_mbert/configs/"
-            "bpe_tok.yaml"
-        ).read_text(encoding="utf-8")
+        Path(BASE_PATH / "configs" / "bpe_tok.yaml").read_text(
+            encoding="utf-8"
+        )
     )
     config_from_dict = BpeTokConfig(yaml_dict)
     config_from_get = get_config_for_bpe_tok(
-        "C:/Users/tomic/ml/projects/" "dns_exfil_mbert/configs/" "bpe_tok.yaml"
+        str(BASE_PATH / "configs" / "bpe_tok.yaml")
     )
     print(config_from_file_str.max_length)
     assert config_from_file_str == config_from_Path

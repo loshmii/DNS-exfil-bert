@@ -20,7 +20,7 @@ def tokenizer():
 
 
 @given(domain_str=domain_strat)
-def test_roundtrip(domain_str: str, tokenizer: CharTokenizer) -> None:
+def test_roundtrip_char(domain_str: str, tokenizer: CharTokenizer) -> None:
     ids = tokenizer(domain_str, add_special_tokens=False)["input_ids"]
     recovered = tokenizer.decode(ids, skip_special_tokens=True)
     assert recovered == domain_str

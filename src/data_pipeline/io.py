@@ -240,7 +240,9 @@ def remove_duplicates(
             "w", encoding="utf-8"
         ) as lf:
 
-            rows = c.execute("SELECT domain, label FROM domains ORDER BY rowid;")
+            rows = c.execute(
+                "SELECT domain, label FROM domains ORDER BY rowid;"
+            )
             for dom, lbl in tqdm(
                 rows,
                 desc="Exporting rows",
@@ -251,7 +253,7 @@ def remove_duplicates(
                 lf.write(f"{lbl}\n")
     finally:
         conn.close()
-        
+
         try:
             db_path.unlink()
         except FileNotFoundError:
@@ -260,10 +262,10 @@ def remove_duplicates(
 
 
 if __name__ == "__main__":
-    raw_base = Path("C:/Users/tomic/ml" "/projects/dns_exfil_mbert/data/raw")
-    out_base = Path(
-        "C:/Users/tomic/ml" "/projects/dns_exfil_mbert/data/processed"
-    )
+    DIR = Path(__file__).resolve().parent.parent.parent
+    print(DIR)
+    raw_base = DIR / "data" / "raw"
+    out_base = DIR / "data" / "processed"
     raw_to_normalized(
         raw_base,
         out_base,

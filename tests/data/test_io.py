@@ -1,6 +1,4 @@
 import pytest
-import csv
-import sqlite3
 import data_pipeline.io as io
 import tempfile
 from pathlib import Path

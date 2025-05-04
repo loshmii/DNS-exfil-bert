@@ -15,7 +15,7 @@ def tokenizer():
     return CharTokenizer(cfg)
 
 
-def test_save_pretrained_roundtrip(tokenizer: CharTokenizer) -> None:
+def test_save_pretrained_roundtrip_char(tokenizer: CharTokenizer) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         tokenizer.save_pretrained(tmpdir)
         tok2 = CharTokenizer.from_pretrained(tmpdir)
@@ -27,7 +27,7 @@ def test_save_pretrained_roundtrip(tokenizer: CharTokenizer) -> None:
         assert decoded == example
 
 
-def test_half_filled_dict() -> None:
+def test_half_filled_dict_char() -> None:
     half = {"alphabet": "abc"}
     cfg = get_config_for_char_tok(half)
     assert cfg.max_length == 256

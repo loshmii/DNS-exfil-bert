@@ -139,10 +139,8 @@ class CharTokenizer(PreTrainedTokenizerFast):
 
 
 if __name__ == "__main__":
-    cfg_path = Path(
-        "C:/Users/tomic/ml/projects/"
-        "dns_exfil_mbert/configs/tokenizer_char.yaml"
-    )
+    DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
+    cfg_path = DIR / "configs" / "tokenizer_char.yaml"
     cfg = get_config_for_char_tok(cfg_path)
     tokenizer = CharTokenizer(cfg)
     encodings = tokenizer(
@@ -156,3 +154,4 @@ if __name__ == "__main__":
     print(
         tokenizer.decode(encodings["input_ids"][2], skip_special_tokens=True)
     )
+    print("Done")

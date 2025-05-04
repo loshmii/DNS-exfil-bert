@@ -1,0 +1,4 @@
+# file: C:\Users\tomic\ml\projects\dns_exfil_mbert\src\data_pipeline\tokenizers\bpe_dns\v0_1\bpe_tokenizer.py
+# hypothesis_version: 6.131.9
+
+['BpeTokenizer', '__main__', 'longest_first', 'right', 'xn--example.com']
