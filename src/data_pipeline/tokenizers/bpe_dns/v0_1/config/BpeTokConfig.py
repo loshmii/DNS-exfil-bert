@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import yaml
 from pathlib import Path
 from jsonschema import validate as js_validate, ValidationError
+from omegaconf import DictConfig, OmegaConf
 
 SCHEMA_PATH = Path(
     "C:/Users/tomic/ml/projects/dns_exfil_mbert" "/configs/bpe_tok_schema.json"
@@ -30,7 +31,9 @@ class BpeTokConfig:
     _cfg: Dict[str, Any] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        if isinstance(self.config, dict):
+        if isinstance(self.config, DictConfig):
+            data = OmegaConf.to_container(self.config, resolve=True)
+        elif isinstance(self.config, dict):
             data = self.config
         else:
             path = Path(self.config)
@@ -44,7 +47,8 @@ class BpeTokConfig:
         try:
             js_validate(data, _schema)
         except ValidationError as e:
-            raise ValueError(f"Config file {path} is not valid: {e.message}")
+            source = path if 'path' in locals() else "in-memory dictConfig"
+            raise ValueError(f"Config {source!r} failed schema validation: {e.message}")
         object.__setattr__(self, "_cfg", data)
 
     def __getattr__(self, name: str) -> Any:

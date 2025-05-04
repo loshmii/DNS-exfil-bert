@@ -1,0 +1,5 @@
+training_files: 
+  - ${hydra:runtime.cwd}/data/processed/train.txt
+  - ${hydra:runtime.cwd}/data/processed/val.txt
+  - ${hydra:runtime.cwd}/data/processed/test.txt
+save_dir: ${hydra:runtime.cwd}/artifacts/tokenizer/bpe/bpe8k

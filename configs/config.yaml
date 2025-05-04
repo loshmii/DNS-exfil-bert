@@ -1,0 +1,4 @@
+defaults:
+  - tokenizer: bpe8k
+  - model: mbert
+  - training/tokenizer: bpe8k
