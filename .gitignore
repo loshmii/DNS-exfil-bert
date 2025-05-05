@@ -20,6 +20,10 @@ logs/
 experiments/**/logs/
 experiments/**/checkpoints/
 *.log
+.hypothesis/
+.mypy_cache/
+.pytest_cache/
+
 
 data/raw/
 data/processed/
