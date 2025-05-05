@@ -25,9 +25,7 @@ class RawSplitLoader:
         if files_variant.is_file():
             return [files_variant]
         return sorted(
-            p
-            for p in split_dir.rglob("*.csv")
-            if label in p.stem and p.is_file()
+            p for p in split_dir.rglob("*.csv") if label in p.stem and p.is_file()
         )
 
 
@@ -72,9 +70,7 @@ class RawDataIterator:
 
 
 class DomainValidator:
-    LABEL_PATTERN: ClassVar[re.Pattern] = re.compile(
-        r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$"
-    )
+    LABEL_PATTERN: ClassVar[re.Pattern] = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
     MAX_DOMAIN_LENGTH: ClassVar[int] = 253
 
     @classmethod
@@ -240,9 +236,7 @@ def remove_duplicates(
             "w", encoding="utf-8"
         ) as lf:
 
-            rows = c.execute(
-                "SELECT domain, label FROM domains ORDER BY rowid;"
-            )
+            rows = c.execute("SELECT domain, label FROM domains ORDER BY rowid;")
             for dom, lbl in tqdm(
                 rows,
                 desc="Exporting rows",

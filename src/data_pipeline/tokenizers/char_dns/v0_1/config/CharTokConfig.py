@@ -79,11 +79,7 @@ def get_config_for_char_tok(
 
 
 if __name__ == "__main__":
-    DIR = (
-        Path(__file__)
-        .resolve()
-        .parent.parent.parent.parent.parent.parent.parent
-    )
+    DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
     config_path = DIR / "configs" / "tokenizer_char.yaml"
     cfg = get_config_for_char_tok(config_path)
     print(cfg.special_tokens["pad_token"])

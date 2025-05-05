@@ -6,9 +6,7 @@ import hydra
 from omegaconf import DictConfig
 
 
-@hydra.main(
-    config_path="../../../configs", config_name="config", version_base="1.3"
-)
+@hydra.main(config_path="../../../configs", config_name="config", version_base="1.3")
 def main(cfg: DictConfig):
     tok_cfg = BpeTokConfig(cfg.tokenizer)
     files = [str(f) for f in cfg.training.tokenizer.training_files]
@@ -16,9 +14,7 @@ def main(cfg: DictConfig):
     print(tok_cfg)
     print(files)
     print(save_dir)
-    tok = BpeTokenizer.from_scratch(
-        cfg=tok_cfg, files=files, save_dir=save_dir
-    )
+    tok = BpeTokenizer.from_scratch(cfg=tok_cfg, files=files, save_dir=save_dir)
     print("Example tokenized text:", tok.encode("hello"))
     print(
         "Tokenizer created and saved at:",

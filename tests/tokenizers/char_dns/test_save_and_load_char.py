@@ -9,9 +9,7 @@ from data_pipeline.tokenizers.char_dns.v0_1.config.CharTokConfig import (
 
 @pytest.fixture(scope="module")
 def tokenizer():
-    cfg = get_config_for_char_tok(
-        Path("configs/tokenizer_char.yaml").resolve()
-    )
+    cfg = get_config_for_char_tok(Path("configs/tokenizer_char.yaml").resolve())
     return CharTokenizer(cfg)
 
 

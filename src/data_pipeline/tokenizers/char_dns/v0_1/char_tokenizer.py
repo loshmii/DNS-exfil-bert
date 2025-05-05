@@ -40,9 +40,7 @@ class CharTokenizer(PreTrainedTokenizerFast):
         else:
             specials = _build_specials()
 
-            char_ids = {
-                ch: idx + len(specials) for idx, ch in enumerate(cfg.alphabet)
-            }
+            char_ids = {ch: idx + len(specials) for idx, ch in enumerate(cfg.alphabet)}
 
             full_vocab = {**specials, **char_ids}
 
@@ -59,9 +57,7 @@ class CharTokenizer(PreTrainedTokenizerFast):
                 ]
             )
 
-            tok_obj.pre_tokenizer = pre_tokenizers.Split(
-                "", behavior="isolated"
-            )
+            tok_obj.pre_tokenizer = pre_tokenizers.Split("", behavior="isolated")
             cls_tok = cfg.special_tokens["cls_token"]
             sep_tok = cfg.special_tokens["sep_token"]
             tok_obj.post_processor = processors.TemplateProcessing(
@@ -124,15 +120,11 @@ class CharTokenizer(PreTrainedTokenizerFast):
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: str, **kwargs):
-        cfg_path = os.path.join(
-            pretrained_model_name_or_path, "char_tok_config.yaml"
-        )
+        cfg_path = os.path.join(pretrained_model_name_or_path, "char_tok_config.yaml")
         with open(cfg_path, "r", encoding="utf-8") as f:
             cfg = CharTokConfig(config=yaml.safe_load(f))
 
-        tok_json = os.path.join(
-            pretrained_model_name_or_path, "tokenizer.json"
-        )
+        tok_json = os.path.join(pretrained_model_name_or_path, "tokenizer.json")
         rust_tok = Tokenizer.from_file(tok_json)
 
         return cls(cfg, tokenizer_object=rust_tok, **kwargs)
@@ -151,7 +143,5 @@ if __name__ == "__main__":
     )
     print(encodings["input_ids"])
     print(encodings["attention_mask"])
-    print(
-        tokenizer.decode(encodings["input_ids"][2], skip_special_tokens=True)
-    )
+    print(tokenizer.decode(encodings["input_ids"][2], skip_special_tokens=True))
     print("Done")

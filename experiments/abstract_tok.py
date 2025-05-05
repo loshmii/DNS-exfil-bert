@@ -10,10 +10,7 @@ def main(cfg: DictConfig):
         path=load_file,
     )
     print("Tokenizer loaded from:", load_file)
-    print(
-        tok.decode(tok("hello")["input_ids"], skip_special_tokens=True)
-        == "hello"
-    )
+    print(tok.decode(tok("hello")["input_ids"], skip_special_tokens=True) == "hello")
     print("Passed")
 
 
