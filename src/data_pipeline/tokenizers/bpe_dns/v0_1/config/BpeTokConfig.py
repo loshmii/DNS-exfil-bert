@@ -43,7 +43,6 @@ class BpeTokConfig:
                 raise ValueError(
                     f"Config file {path} is not a valid YAML file."
                 )
-        
         data = {**DEFAULTS, **data}
         try:
             js_validate(data, _schema)
