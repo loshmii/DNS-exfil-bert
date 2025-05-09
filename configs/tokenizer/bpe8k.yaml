@@ -1,5 +1,5 @@
 alphabet: "abcdefghijklmnopqrstuvwxyz0123456789-._"
-"vocab_size" : 8000
+"vocab_size" : 8192
 
 
 pad_token: "[PAD]"

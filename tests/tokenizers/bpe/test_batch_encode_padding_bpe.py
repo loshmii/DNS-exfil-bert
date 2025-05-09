@@ -1,5 +1,5 @@
 import pytest
-from data_pipeline.tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
 from hydra import initialize_config_dir, compose
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig

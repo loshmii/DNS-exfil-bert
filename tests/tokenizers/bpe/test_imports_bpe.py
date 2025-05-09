@@ -1,7 +1,7 @@
 from pathlib import Path
 import tempfile
-from data_pipeline.tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
-from data_pipeline.tokenizers.bpe_dns.v0_1.config.BpeTokConfig import (
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.config.BpeTokConfig import (
     BpeTokConfig,
 )
 

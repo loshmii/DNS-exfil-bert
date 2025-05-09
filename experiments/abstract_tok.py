@@ -1,6 +1,6 @@
 import hydra
 from omegaconf import DictConfig
-from data_pipeline.tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
 
 
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")

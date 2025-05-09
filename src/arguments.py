@@ -1,0 +1,116 @@
+from dataclasses import dataclass, field
+from transformers import TrainingArguments
+import torch
+import hydra
+from pathlib import Path
+from typing import Optional, Sequence, Union, Literal
+from datasets import load_dataset
+from omegaconf import OmegaConf
+from hydra.core.hydra_config import HydraConfig
+
+@dataclass
+class MLMTrainingArguments(TrainingArguments):
+    mlm_probability: float = field(
+        default=0.15,
+        metadata={"help": "The probability of masking tokens in the input."}
+    )
+    span_masking: bool = field(
+        default=False,
+        metadata={"help": "If True, mask contiguous spans of tokens instead of individual tokens."}
+    )
+    span_lambda: float = field(
+        default=3.0,
+        metadata={"help": "Average span length for span masking when span_masking=True."}
+    )
+
+    optimizer_type: str = field(
+        default="adamw",
+        metadata={"help": "The type of optimizer to use. adamw | adafactor"}
+    )
+    lr_scheduler_type: str = field(
+        default="cosine",
+        metadata={"help": "The type of learning rate scheduler to use. linear | cosine | infinite"}
+    )
+    warmup_ratio: float = field(
+        default=0.01,
+        metadata={"help": "The ratio of total steps to use for warmup."}
+    )
+
+    gradient_checkpointing: bool = field(
+        default=True,
+        metadata={"help": "Enable gradient checkpointing to save memory."}
+    )
+    torch_compile: bool = field(
+        default=False,
+        metadata={"help": "Use torch.compile to speed up kernel execution."}
+    )
+
+    def __post_init__(self, **kwargs):
+        super().__post_init__(**kwargs)
+        if not (0.0 < self.mlm_probability <= 1.0):
+            raise ValueError(f"mlm_probability must be between 0.0 and 1.0, got {self.mlm_probability}.")
+        if self.span_masking and self.span_lambda <= 0:
+            raise ValueError(f"span_lambda must be greater than 0 when span_masking is True, got {self.span_lambda}.")
+        allowed = {"adamw", "adafactor"}
+        if self.optimizer_type not in allowed:
+            raise ValueError(f"optimizer_type must be one of {allowed}, got {self.optimizer_type}.")
+        if self.torch_compile and not hasattr(torch, "compile"):
+            raise ValueError("torch.compile is not available in this version of PyTorch.")
+        
+@dataclass
+class DataArguments:
+    root : Union[str, Path] = field(
+        metadata={"help": "Path to the root directory of the dataset."}
+    )
+    layout: Literal["raw", "processed"] = field(
+        default="processed",
+        metadata={"help": "Layout of the dataset. raw | processed"}
+    )
+    block_size: int = field(
+        default=128,
+        metadata={"help": "Input sequence length after tokenization."}
+    )
+
+    def __post_init__(self):
+        if self.block_size <= 0:
+            raise ValueError(f"block_size must be > 0, got {self.block_size}.")
+        if self.layout not in {"raw", "processed"}:
+            raise ValueError(f"layout must be 'raw' or 'processed', got {self.layout}.")
+        
+@dataclass
+class ModelArguments:
+    config_name: str = field(
+        default="google-bert/bert-base-uncased",
+        metadata={"help": "Path to the model config file."}
+    )
+    tokenizer_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to the tokenizer config file."}
+    )
+    pretrainer_model_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to the pre-trained model."}
+    )
+
+    def __post_init__(self):
+        if not self.config_name and not self.pretrainer_model_path:
+            raise ValueError(
+                "Specify either `config_name` or `pretrainer_model_path`."
+            )
+
+def parse_dataclasses(cfg):
+    return (
+        ModelArguments(**OmegaConf.to_container(cfg.model, resolve=True)),
+        DataArguments(**OmegaConf.to_container(cfg.data, resolve=True)),
+        MLMTrainingArguments(**OmegaConf.to_container(cfg.train, resolve=True))
+    )
+
+if __name__ == "__main__":
+    with hydra.initialize_config_dir(config_dir=str(Path.cwd() / "configs"), 
+        job_name="training_args_test", version_base="1.3"):
+        cfg = hydra.compose(config_name="config", return_hydra_config=True)
+        HydraConfig().set_config(cfg)
+        model_args, data_args, train_args = parse_dataclasses(cfg)
+        print(model_args)
+        print(data_args)
+        print(train_args)

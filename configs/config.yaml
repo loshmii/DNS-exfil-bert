@@ -1,4 +1,8 @@
 defaults:
   - tokenizer: bpe8k
-  - model: mbert
+  - model: bert_for_mlm
   - training/tokenizer: bpe8k
+  - training/model: bert_for_mlm
+  - data_collator: mlm
+  - train: args_for_mlm
+  - data: data_for_mlm

@@ -7,7 +7,7 @@ from tokenizers import (
     normalizers,
 )
 from typing import Optional
-from data_pipeline.tokenizers.char_dns.v0_1.config.CharTokConfig import (
+from data_pipeline.dns_tokenizers.char_dns.v0_1.config.CharTokConfig import (
     CharTokConfig,
     get_config_for_char_tok,
 )

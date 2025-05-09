@@ -5,7 +5,7 @@ from hydra import initialize_config_dir, compose
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig
 from pathlib import Path
-from data_pipeline.tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
 
 domain_start = st.from_regex(r"(?:[a-z0-9\-]+\.)+[a-z]{2,}", fullmatch=True)
 

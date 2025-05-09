@@ -13,4 +13,4 @@ special_tokens:
   unk_token: '[UNK]'
 truncation: true
 unk_token: '[UNK]'
-vocab_size: 8000
+vocab_size: 8192

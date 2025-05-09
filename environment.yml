@@ -11,6 +11,8 @@ dependencies:
   - jsonschema
   - tqdm
   - tokenizers
+  - accelerate
+  - ipykernel
   - sentencepiece
   - datasets
   - transformers>=4.30.0
