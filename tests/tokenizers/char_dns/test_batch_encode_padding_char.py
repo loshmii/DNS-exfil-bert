@@ -1,5 +1,7 @@
 import pytest
-from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import CharTokenizer
+from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
+    CharTokenizer,
+)
 from data_pipeline.dns_tokenizers.char_dns.v0_1.config.CharTokConfig import (
     get_config_for_char_tok,
 )
@@ -8,7 +10,9 @@ from pathlib import Path
 
 @pytest.fixture(scope="module")
 def tokenizer() -> CharTokenizer:
-    cfg = get_config_for_char_tok(Path("configs/tokenizer_char.yaml").resolve())
+    cfg = get_config_for_char_tok(
+        Path("configs/tokenizer_char.yaml").resolve()
+    )
     return CharTokenizer(cfg)
 
 

@@ -1,5 +1,7 @@
 import pytest
-from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
+    BpeTokenizer,
+)
 from hydra import initialize_config_dir, compose
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig
@@ -9,10 +11,13 @@ from pathlib import Path
 @pytest.fixture(scope="module")
 def cfg() -> DictConfig:
     with initialize_config_dir(
-        config_dir=str(Path.cwd() / "configs"), job_name="test", version_base="1.3"
+        config_dir=str(Path.cwd() / "configs"),
+        job_name="test",
+        version_base="1.3",
     ):
         cfg = compose(
-            config_name="config", overrides=["tokenizer=bpe8k", "hydra.run.dir=."]
+            config_name="config",
+            overrides=["tokenizer=bpe8k", "hydra.run.dir=."],
         )
     return cfg
 

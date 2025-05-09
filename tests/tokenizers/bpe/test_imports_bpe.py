@@ -1,6 +1,8 @@
 from pathlib import Path
 import tempfile
-from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
+    BpeTokenizer,
+)
 from data_pipeline.dns_tokenizers.bpe_dns.v0_1.config.BpeTokConfig import (
     BpeTokConfig,
 )
@@ -14,7 +16,9 @@ def test_bpe_tokenizer_initialization():
 
         files = [str(BASE / "data" / "toy" / "BPETrainToy.txt")]
         save_path = Path(tmpdir) / "tok"
-        tok = BpeTokenizer.from_scratch(cfg=cfg, files=files, save_dir=save_path)
+        tok = BpeTokenizer.from_scratch(
+            cfg=cfg, files=files, save_dir=save_path
+        )
         tok("sample.com")
         tok1 = BpeTokenizer.from_pretrained(path=save_path)
         tok2 = BpeTokenizer.from_pretrained(path=save_path)

@@ -1,5 +1,7 @@
 import pytest
-from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import CharTokenizer
+from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
+    CharTokenizer,
+)
 from data_pipeline.dns_tokenizers.char_dns.v0_1.config.CharTokConfig import (
     get_config_for_char_tok,
 )

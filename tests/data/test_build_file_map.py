@@ -3,6 +3,7 @@ import tempfile
 from data_pipeline.dataset import _build_file_map
 from pathlib import Path
 
+
 def test_build_file_map_processed():
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -13,9 +14,11 @@ def test_build_file_map_processed():
         fm = _build_file_map(root, layout="processed")
         assert list(fm.keys()) == ["train", "val", "test"]
         assert all(
-            Path(path_list[0]).exists() and path_list[0].endswith(f"{split}.txt")
+            Path(path_list[0]).exists()
+            and path_list[0].endswith(f"{split}.txt")
             for split, path_list in fm.items()
         )
+
 
 def test_build_file_map_raw():
     with tempfile.TemporaryDirectory() as temp_dir:

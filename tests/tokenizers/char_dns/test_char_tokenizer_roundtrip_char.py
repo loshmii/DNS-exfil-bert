@@ -3,7 +3,9 @@ from hypothesis import given
 import pytest
 from pathlib import Path
 
-from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import CharTokenizer
+from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
+    CharTokenizer,
+)
 from data_pipeline.dns_tokenizers.char_dns.v0_1.config.CharTokConfig import (
     get_config_for_char_tok,
 )
@@ -13,7 +15,9 @@ domain_strat = st.from_regex(r"(?:[a-z0-9\-]+\.)+[a-z]{2,}", fullmatch=True)
 
 @pytest.fixture(scope="module")
 def tokenizer():
-    cfg = get_config_for_char_tok(Path("configs/tokenizer_char.yaml").resolve())
+    cfg = get_config_for_char_tok(
+        Path("configs/tokenizer_char.yaml").resolve()
+    )
     return CharTokenizer(cfg)
 
 
