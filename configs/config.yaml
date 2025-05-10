@@ -6,3 +6,4 @@ defaults:
   - data_collator: mlm
   - train: args_for_mlm
   - data: data_for_mlm
+  - dataset: dataset_for_mlm
