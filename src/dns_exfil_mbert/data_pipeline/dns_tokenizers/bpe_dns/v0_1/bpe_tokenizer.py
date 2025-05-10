@@ -9,7 +9,7 @@ from tokenizers import (
     decoders,
 )
 from typing import Sequence
-from data_pipeline.dns_tokenizers.bpe_dns.v0_1.config.BpeTokConfig import (
+from dns_exfil_mbert.data_pipeline.dns_tokenizers.bpe_dns.v0_1.config import (
     BpeTokConfig,
 )
 from pathlib import Path

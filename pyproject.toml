@@ -6,9 +6,9 @@ build-backend = "setuptools.build_meta"
 name            = "dns_exfil_mbert"
 version         = "0.1.0"
 description     = "BERT-based DNS exfiltration detector"
-readme          = { file = "README.md", content-type = "text/markdown" }
+readme          = { file = "README.md", "content-type" = "text/markdown" }
 requires-python = ">=3.8"
-dependencies = [
+dependencies    = [
   "torch>=2.0",
   "transformers>=4.30",
   "datasets",
@@ -20,13 +20,13 @@ dependencies = [
 [project.scripts]
 run-mlm-smoke = "dns_exfil_mbert.training.run_mlm_smoke:main"
 
-
 [tool.setuptools]
-package-dir = { "dns_exfil_mbert" = "src" }
+# map the dns_exfil_mbert namespace to your src/ folder
+package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where   = ["src"]
-include = ["*"]
+include = ["dns_exfil_mbert*"]
 
 [tool.black]
 line-length = 79
