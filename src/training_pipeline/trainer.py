@@ -5,18 +5,52 @@ from transformers import (
     BertConfig,
     Trainer,
     DataCollatorForLanguageModeling,
+    TrainerCallback,
+    TrainerControl,
+    TrainerState,
 )
 import hydra
 from pathlib import Path
-from data_pipeline.dataset import load_dns_dataset
+from datasets import load_dataset
 from hydra.core.hydra_config import HydraConfig
 from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
     BpeTokenizer,
 )
-from arguments import parse_dataclasses
+from training_pipeline.arguments import parse_dataclasses
 from transformers import logging as hf_logging
 import logging
+from training_pipeline.masker import MaskSampler
+from training_pipeline.data_collator import DnsDataCollatorForMLM
 
+class MaskingCallback(TrainerCallback):
+    def __init__(self, collator):
+        self.mask_sampler: MaskSampler = collator.mask_sampler
+
+    def on_epoch_begin(
+        self,
+        args,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
+        self.mask_sampler.set_epoch(state.epoch)
+        return control
+    
+class FileLoggingCallback(TrainerCallback):
+    def on_log(
+        self,
+        args,
+        state: TrainerState,
+        control: TrainerControl,
+        logs=None,
+        **kwargs,
+    ):
+        logs = logs or {}
+        logger = logging.getLogger("transformer.trainer")
+        logger.info(
+            {k: float(v) for k, v in logs.items()}
+        )
+        return control
 
 class MLMTrainer(Trainer):
     def __init__(self, *args, **kwargs):
@@ -24,7 +58,6 @@ class MLMTrainer(Trainer):
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         outputs = model(**inputs)
-        print("Outputs are computed")
         mlm_loss = outputs.loss
         if return_outputs:
             return mlm_loss, outputs
@@ -118,31 +151,57 @@ if __name__ == "__main__":
         "%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
 
-    ch = logging.StreamHandler()
+    ch = logging.FileHandler(str(output_dir / "training.log"), mode="w")
     ch.setFormatter(fmt)
     root.addHandler(ch)
-
-    log_path = output_dir / "training.log"
-    fh = logging.FileHandler(str(log_path), mode="w")
-    fh.setFormatter(fmt)
-    root.addHandler(fh)
-
-    hf_logging.enable_default_handler()
-    hf_logging.set_verbosity_info()
 
     tokenizer = BpeTokenizer.from_pretrained(cfg.tokenizer.load_dir)
     model_cfg = BertConfig.from_pretrained(
         cfg.model.config_name, vocab_size=tokenizer.vocab_size
     )
     model = AutoModelForMaskedLM.from_config(model_cfg)
-    ds = load_dns_dataset(data_args, tokenizer)
-    train_ds = ds["train"].select(range(64))
-    eval_ds = ds["val"].select(range(32))
+    
+    data_files = {
+        "train": [str(f) for f in cfg.dataset.files.train],
+        "validation": [str(f) for f in cfg.dataset.files.validation],
+        "test": [str(f) for f in cfg.dataset.files.test],
+    }
 
-    data_collator = DataCollatorForLanguageModeling(
-        tokenizer=tokenizer,
-        mlm=True,
+    ds = load_dataset(
+        path="src/training_pipeline/dataset_builder.py",
+        name="default",
+        data_files=data_files,
+        streaming=False,
+        trust_remote_code=True,
+    )
+    
+    def tokenize_fn(examples):
+        return tokenizer(
+            examples["text"],
+            padding=False,
+            truncation=True,
+            return_special_tokens_mask=True,
+            return_attention_mask=True,
+            return_token_type_ids=False,
+        )
+    
+    ds = ds.map(
+        tokenize_fn,
+        batched=True,
+        remove_columns=["text"],
+    )
+
+    train_ds = ds["train"]
+    eval_ds = ds["validation"]
+
+    mask_sampler = MaskSampler(
         mlm_probability=train_args.mlm_probability,
+        strategy="token",
+    )
+
+    data_collator = DnsDataCollatorForMLM(
+        tokenizer=tokenizer,
+        mask_sampler=mask_sampler,
     )
 
     trainer = MLMTrainer(
@@ -152,6 +211,10 @@ if __name__ == "__main__":
         eval_dataset=eval_ds,
         processing_class=tokenizer,
         data_collator=data_collator,
+        callbacks=[
+            MaskingCallback(data_collator),
+            FileLoggingCallback(),
+        ]
     )
 
     trainer.train()

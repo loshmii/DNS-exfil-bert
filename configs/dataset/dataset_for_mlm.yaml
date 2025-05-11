@@ -1,4 +1,7 @@
 files:
-  train: ${hydra:runtime.cwd}/data/processed/train.txt
-  validation: ${hydra:runtime.cwd}/data/processed/val.txt
-  test: ${hydra:runtime.cwd}/data/processed/test.txt
+  train:
+    - ${hydra:runtime.cwd}/data/processed/train.txt
+  validation:
+    - ${hydra:runtime.cwd}/data/processed/val.txt
+  test:
+    - ${hydra:runtime.cwd}/data/processed/test.txt

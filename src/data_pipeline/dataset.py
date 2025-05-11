@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Dict, Sequence, Union
 from datasets import load_dataset, DatasetDict
-from arguments import DataArguments, parse_dataclasses
+from training_pipeline.arguments import DataArguments, parse_dataclasses
 import hydra
 from hydra.core.hydra_config import HydraConfig
 from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (

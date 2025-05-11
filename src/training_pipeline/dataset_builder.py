@@ -31,17 +31,25 @@ class DnsDatasetBuilder(GeneratorBasedBuilder):
 
     def _split_generators(self, dl_manager):
         files = self.config.data_files
-        unwrap = lambda x: x[0] if isinstance(x, list) else x
         return [
-            SplitGenerator(Split.TRAIN,      gen_kwargs={"filepath": unwrap(files["train"])}),
-            SplitGenerator(Split.VALIDATION, gen_kwargs={"filepath": unwrap(files["validation"])}),
-            SplitGenerator(Split.TEST,       gen_kwargs={"filepath": unwrap(files["test"])}),
+            SplitGenerator(
+                Split.TRAIN, gen_kwargs={"filepath": files["train"]}
+            ),
+            SplitGenerator(
+                Split.VALIDATION,
+                gen_kwargs={"filepath": files["validation"]},
+            ),
+            SplitGenerator(
+                Split.TEST, gen_kwargs={"filepath": files["test"]}
+            ),
         ]
 
     def _generate_examples(self, filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            for idx, line in enumerate(f):
-                yield idx, {"text": line.strip()}
+        paths = filepath if isinstance(filepath, (list, tuple)) else [filepath]
+        for file_idx, fp in enumerate(paths):
+            with open(fp, "r", encoding="utf-8") as f:
+                for line_idx, line in enumerate(f):
+                    yield f"{file_idx}-{line_idx}", {"text": line.strip()}
 
 
 if __name__ == "__main__":
@@ -56,23 +64,22 @@ if __name__ == "__main__":
     ):
         cfg = hydra.compose(
             config_name="config",
-            overrides=["tokenizer=bpe_from_pretrained", "model=bert_for_mlm"],
+            overrides=["tokenizer=bpe_from_pretrained", "model=bert_for_mlm", "dataset=dataset_for_mlm"],
             return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)
 
-    print(cfg.dataset.files.train)
     data_files = {
-        "train": str(cfg.dataset.files.train),
-        "validation": str(cfg.dataset.files.validation),
-        "test": str(cfg.dataset.files.test),
+        "train": [str(f) for f in cfg.dataset.files.train],
+        "validation": [str(f) for f in cfg.dataset.files.validation],
+        "test": [str(f) for f in cfg.dataset.files.test],
     }
 
     ds = load_dataset(
-        path="src/data_pipeline/dataset_builder.py",
+        path="src/training_pipeline/dataset_builder.py",
         name="default",
         data_files=data_files,
         streaming=False,
         trust_remote_code=True,
     )
-    print(ds)
+    print(ds["train"]["text"][0:10])
