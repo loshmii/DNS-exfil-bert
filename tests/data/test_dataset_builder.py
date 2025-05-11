@@ -31,7 +31,7 @@ def sample_multiple_fies(tmp_path):
 def test_dataset_splits_and_contents(sample_data):
     files = sample_data
     ds = load_dataset(
-        path="src/data_pipeline/dataset_builder.py",
+        path="src/training_pipeline/dataset_builder.py",
         name="default",
         data_files=files,
         streaming=False,
@@ -47,7 +47,7 @@ def test_dataset_splits_and_contents(sample_data):
 def test_dataset_multiple_files(sample_multiple_fies):
     files = sample_multiple_fies
     ds = load_dataset(
-        path="src/data_pipeline/dataset_builder.py",
+        path="src/training_pipeline/dataset_builder.py",
         name="default",
         data_files=files,
         streaming=False,
@@ -70,7 +70,7 @@ def test_dataset_info():
 def test_streaming_mode(sample_data):
     files = sample_data
     ds = load_dataset(
-        path="src/data_pipeline/dataset_builder.py",
+        path="src/training_pipeline/dataset_builder.py",
         name="default",
         data_files=files,
         streaming=True,
