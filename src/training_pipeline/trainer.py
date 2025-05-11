@@ -4,7 +4,6 @@ from transformers import (
     AutoModelForMaskedLM,
     BertConfig,
     Trainer,
-    DataCollatorForLanguageModeling,
     TrainerCallback,
     TrainerControl,
     TrainerState,
@@ -13,14 +12,12 @@ import hydra
 from pathlib import Path
 from datasets import load_dataset
 from hydra.core.hydra_config import HydraConfig
-from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
-    BpeTokenizer,
-)
 from training_pipeline.arguments import parse_dataclasses
-from transformers import logging as hf_logging
 import logging
 from training_pipeline.masker import MaskSampler
 from training_pipeline.data_collator import DnsDataCollatorForMLM
+from omegaconf import OmegaConf
+
 
 class MaskingCallback(TrainerCallback):
     def __init__(self, collator):
@@ -35,7 +32,8 @@ class MaskingCallback(TrainerCallback):
     ):
         self.mask_sampler.set_epoch(state.epoch)
         return control
-    
+
+
 class FileLoggingCallback(TrainerCallback):
     def on_log(
         self,
@@ -47,10 +45,9 @@ class FileLoggingCallback(TrainerCallback):
     ):
         logs = logs or {}
         logger = logging.getLogger("transformer.trainer")
-        logger.info(
-            {k: float(v) for k, v in logs.items()}
-        )
+        logger.info({k: float(v) for k, v in logs.items()})
         return control
+
 
 class MLMTrainer(Trainer):
     def __init__(self, *args, **kwargs):
@@ -132,12 +129,12 @@ if __name__ == "__main__":
     ):
         cfg = hydra.compose(
             config_name="config",
-            overrides=["tokenizer=bpe_from_pretrained", "model=bert_for_mlm"],
+            overrides=["tokenizer=bpe8k_pretrained", "model=bert_uncased"],
             return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)
 
-    model_args, data_args, train_args = parse_dataclasses(cfg)
+    model_args, train_args = parse_dataclasses(cfg)
 
     output_dir = Path(train_args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -155,17 +152,13 @@ if __name__ == "__main__":
     ch.setFormatter(fmt)
     root.addHandler(ch)
 
-    tokenizer = BpeTokenizer.from_pretrained(cfg.tokenizer.load_dir)
+    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
     model_cfg = BertConfig.from_pretrained(
         cfg.model.config_name, vocab_size=tokenizer.vocab_size
     )
     model = AutoModelForMaskedLM.from_config(model_cfg)
-    
-    data_files = {
-        "train": [str(f) for f in cfg.dataset.files.train],
-        "validation": [str(f) for f in cfg.dataset.files.validation],
-        "test": [str(f) for f in cfg.dataset.files.test],
-    }
+
+    data_files = OmegaConf.to_container(cfg.dataset.files, resolve=True)
 
     ds = load_dataset(
         path="src/training_pipeline/dataset_builder.py",
@@ -174,7 +167,7 @@ if __name__ == "__main__":
         streaming=False,
         trust_remote_code=True,
     )
-    
+
     def tokenize_fn(examples):
         return tokenizer(
             examples["text"],
@@ -184,7 +177,7 @@ if __name__ == "__main__":
             return_attention_mask=True,
             return_token_type_ids=False,
         )
-    
+
     ds = ds.map(
         tokenize_fn,
         batched=True,
@@ -214,7 +207,7 @@ if __name__ == "__main__":
         callbacks=[
             MaskingCallback(data_collator),
             FileLoggingCallback(),
-        ]
+        ],
     )
 
     trainer.train()

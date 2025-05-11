@@ -16,7 +16,7 @@ domain_strat = st.from_regex(r"(?:[a-z0-9\-]+\.)+[a-z]{2,}", fullmatch=True)
 @pytest.fixture(scope="module")
 def tokenizer():
     cfg = get_config_for_char_tok(
-        Path("configs/tokenizer_char.yaml").resolve()
+        Path("configs/tokenizer/char.yaml").resolve()
     )
     return CharTokenizer(cfg)
 

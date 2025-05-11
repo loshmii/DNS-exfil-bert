@@ -1,23 +1,26 @@
-import hydra
-from omegaconf import DictConfig
 from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
     BpeTokenizer,
 )
-
-
-@hydra.main(config_path="../configs", config_name="config", version_base="1.3")
-def main(cfg: DictConfig):
-    load_file = str(cfg.training.tokenizer.save_dir)
-    tok = BpeTokenizer.from_pretrained(
-        path=load_file,
-    )
-    print("Tokenizer loaded from:", load_file)
-    print(
-        tok.decode(tok("hello")["input_ids"], skip_special_tokens=True)
-        == "hello"
-    )
-    print("Passed")
-
+import hydra
+from pathlib import Path
+from hydra.core.hydra_config import HydraConfig
 
 if __name__ == "__main__":
-    main()
+    with hydra.initialize_config_dir(
+        config_dir=str(Path.cwd() / "configs"),
+        job_name="dot_check",
+        version_base="1.3",
+    ):
+        cfg = hydra.compose(
+            config_name="config",
+            overrides=["tokenizer=bpe8k_pretrained"],
+            return_hydra_config=True,
+        )
+        HydraConfig().set_config(cfg)
+        tok = BpeTokenizer.from_pretrained(
+            path=str(cfg.tokenizer.path),
+        )
+        print(
+            tok.decode(tok("hello.com")["input_ids"], skip_special_tokens=True)
+        )
+        print("Passed")

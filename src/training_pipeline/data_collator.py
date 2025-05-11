@@ -3,6 +3,8 @@ from typing import List, Dict, Optional
 import torch
 from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
 from training_pipeline.masker import MaskSampler
+from omegaconf import OmegaConf
+
 
 @dataclass
 class DnsDataCollatorForMLM:
@@ -13,10 +15,16 @@ class DnsDataCollatorForMLM:
     random_token_prob: float = 0.1
 
     def __post_init__(self):
-        assert isinstance(self.tokenizer, PreTrainedTokenizerFast), "tokenizer must be a PreTrainedTokenizerFast instance"
-        assert self.tokenizer.mask_token_id is not None, "tokenizer must have a mask token id under 'tokenizer.mask_token_id'"
+        assert isinstance(
+            self.tokenizer, PreTrainedTokenizerFast
+        ), "tokenizer must be a PreTrainedTokenizerFast instance"
+        assert (
+            self.tokenizer.mask_token_id is not None
+        ), "tokenizer must have a mask token id under 'tokenizer.mask_token_id'"
 
-    def __call__(self, features: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+    def __call__(
+        self, features: List[Dict[str, torch.Tensor]]
+    ) -> Dict[str, torch.Tensor]:
         batch = self.tokenizer.pad(
             features,
             return_tensors="pt",
@@ -41,20 +49,30 @@ class DnsDataCollatorForMLM:
         probs = torch.rand(ids.shape, device=device)
 
         flag1 = mask & (probs < self.mask_token_prob)
-        ids = torch.where(flag1, self.tokenizer.mask_token_id * torch.ones(ids.shape, device=device), ids).long()
+        ids = torch.where(
+            flag1,
+            self.tokenizer.mask_token_id
+            * torch.ones(ids.shape, device=device),
+            ids,
+        ).long()
 
-        flag2 = mask & (probs >= self.mask_token_prob) & (probs < self.mask_token_prob + self.random_token_prob)
-        ids = torch.where(flag2, torch.randint(vocab_size, ids.shape, device=device), ids).long()
+        flag2 = (
+            mask
+            & (probs >= self.mask_token_prob)
+            & (probs < self.mask_token_prob + self.random_token_prob)
+        )
+        ids = torch.where(
+            flag2, torch.randint(vocab_size, ids.shape, device=device), ids
+        ).long()
 
         batch["input_ids"] = ids
         batch["labels"] = labels
         batch["attention_mask"] = attention_mask
         batch.pop("special_tokens_mask", None)
         return batch
-    
+
+
 if __name__ == "__main__":
-    from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
-    from training_pipeline.dataset_builder import DnsDatasetBuilder
     from datasets import load_dataset
     import hydra
     from hydra.core.hydra_config import HydraConfig
@@ -65,23 +83,24 @@ if __name__ == "__main__":
         job_name="dns_data_collator",
         version_base="1.3",
     ):
-        cfg = hydra.compose(config_name="config", 
-                            overrides=["tokenizer=bpe_from_pretrained", "model=bert_for_mlm", "dataset=dataset_for_mlm"],
-                            return_hydra_config=True,
-                            )
+        cfg = hydra.compose(
+            config_name="config",
+            overrides=[
+                "tokenizer=bpe8k_pretrained",
+                "model=bert_uncased",
+                "dataset=dataset_for_mlm",
+            ],
+            return_hydra_config=True,
+        )
         HydraConfig().set_config(cfg)
-    
-    tokenizer = BpeTokenizer.from_pretrained(cfg.tokenizer.load_dir)
+
+    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
     mask_sampler = MaskSampler(
         mlm_probability=0.15,
         strategy="token",
     )
 
-    data_files = {
-        "train": [str(f) for f in cfg.dataset.files.train],
-        "validation": [str(f) for f in cfg.dataset.files.validation],
-        "test": [str(f) for f in cfg.dataset.files.test],
-    }
+    data_files = OmegaConf.to_container(cfg.dataset.files, resolve=True)
 
     ds = load_dataset(
         path="src/training_pipeline/dataset_builder.py",
@@ -99,13 +118,13 @@ if __name__ == "__main__":
             return_special_tokens_mask=True,
             return_attention_mask=True,
         )
-    
+
     ds = ds.map(
         tokenize_fn,
         batched=True,
         remove_columns=["text"],
     )
-    
+
     data_collator = DnsDataCollatorForMLM(
         tokenizer=tokenizer,
         mask_sampler=mask_sampler,

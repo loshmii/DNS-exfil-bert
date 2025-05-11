@@ -6,6 +6,7 @@ from hydra import initialize_config_dir, compose
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig
 from pathlib import Path
+from hydra.core.hydra_config import HydraConfig
 
 
 @pytest.fixture(scope="module")
@@ -17,28 +18,30 @@ def cfg() -> DictConfig:
     ):
         cfg = compose(
             config_name="config",
-            overrides=["tokenizer=bpe8k", "hydra.run.dir=."],
+            overrides=["tokenizer=bpe8k_pretrained", "hydra.run.dir=."],
+            return_hydra_config=True,
         )
+        HydraConfig().set_config(cfg)
     return cfg
 
 
 def test_tok_build_bpe(cfg: DictConfig):
     tok = BpeTokenizer.from_pretrained(
-        path=Path(to_absolute_path(cfg.training.tokenizer.save_dir))
+        path=Path(to_absolute_path(cfg.tokenizer.path))
     )
     assert isinstance(tok, BpeTokenizer)
 
 
 def test_padding_and_attention_mask_bpe(cfg: DictConfig):
+    tokenizer = BpeTokenizer.from_pretrained(
+        path=Path(to_absolute_path(cfg.tokenizer.path))
+    )
     input_strings = [
         "a",
         "ab",
         "abcde",
-        "f" * (cfg.tokenizer.max_length + 5),
+        "f" * (tokenizer.model_max_length + 5),
     ]
-    tokenizer = BpeTokenizer.from_pretrained(
-        path=Path(to_absolute_path(cfg.training.tokenizer.save_dir))
-    )
     batch = tokenizer(
         input_strings,
         padding=True,
@@ -54,7 +57,7 @@ def test_padding_and_attention_mask_bpe(cfg: DictConfig):
     st_set = tokenizer.all_special_ids
 
     assert len(set(lengths)) == 1
-    assert lengths[0] <= cfg.tokenizer.max_length
+    assert lengths[0] <= tokenizer.model_max_length
 
     for seq, mask, sts in zip(input_ids, attention_mask, st_mask):
         for tok, m, st in zip(seq, mask, sts):

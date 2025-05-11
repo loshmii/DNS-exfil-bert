@@ -1,16 +1,16 @@
 from training_pipeline.arguments import parse_dataclasses
-from training_pipeline.trainer import MLMTrainer, MaskingCallback, FileLoggingCallback
+from training_pipeline.trainer import (
+    MLMTrainer,
+    MaskingCallback,
+    FileLoggingCallback,
+)
 from training_pipeline.masker import MaskSampler
 from training_pipeline.data_collator import DnsDataCollatorForMLM
-from training_pipeline.dataset_builder import DnsDatasetBuilder
 import hydra
 from hydra.core.hydra_config import HydraConfig
 from pathlib import Path
 from datasets import load_dataset
 import logging
-from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
-    BpeTokenizer,
-)
 from transformers import (
     BertConfig,
     AutoModelForMaskedLM,
@@ -26,14 +26,13 @@ if __name__ == "__main__":
         cfg = hydra.compose(
             config_name="config",
             overrides=[
-                "tokenizer=bpe_from_pretrained",
-                "model=bert_for_mlm",
-                "train=args_for_overfitting",
+                "tokenizer=bpe8k_pretrained",
+                "training_arguments=overfitting",
             ],
             return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)
-    
+
     model_args, data_args, train_args = parse_dataclasses(cfg)
 
     output_dir = Path(train_args.output_dir).expanduser().resolve()
@@ -52,7 +51,7 @@ if __name__ == "__main__":
     ch.setFormatter(fmt)
     root.addHandler(ch)
 
-    tokenizer = BpeTokenizer.from_pretrained(cfg.tokenizer.load_dir)
+    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
     model_cfg = BertConfig.from_pretrained(
         cfg.model.config_name, vocab_size=tokenizer.vocab_size
     )
@@ -81,7 +80,7 @@ if __name__ == "__main__":
             return_attention_mask=True,
             return_token_type_ids=False,
         )
-    
+
     ds = ds.map(
         tokenize_fn,
         batched=True,
@@ -111,7 +110,7 @@ if __name__ == "__main__":
         callbacks=[
             MaskingCallback(data_collator),
             FileLoggingCallback(),
-        ]
+        ],
     )
 
     trainer.train()

@@ -15,6 +15,7 @@ def sample_data(tmp_path):
         files[split] = str(f)
     return files
 
+
 @pytest.fixture
 def sample_multiple_fies(tmp_path):
     root = Path(tmp_path)
@@ -27,6 +28,7 @@ def sample_multiple_fies(tmp_path):
         f_2.write_text("\n".join(lines), encoding="utf-8")
         files[split] = [str(f_1), str(f_2)]
     return files
+
 
 def test_dataset_splits_and_contents(sample_data):
     files = sample_data
@@ -44,6 +46,7 @@ def test_dataset_splits_and_contents(sample_data):
         texts = [ex["text"] for ex in ds[name]]
         assert texts == expected
 
+
 def test_dataset_multiple_files(sample_multiple_fies):
     files = sample_multiple_fies
     ds = load_dataset(
@@ -57,15 +60,19 @@ def test_dataset_multiple_files(sample_multiple_fies):
     for name in ("train", "validation", "test"):
         expected = []
         for file in files[name]:
-            expected.extend(Path(file).read_text(encoding="utf-8").splitlines())
+            expected.extend(
+                Path(file).read_text(encoding="utf-8").splitlines()
+            )
         texts = [ex["text"] for ex in ds[name]]
         assert texts == expected
+
 
 def test_dataset_info():
     builder = DnsDatasetBuilder()
     info = builder._info()
     assert "text" in info.features
     assert info.features["text"].dtype == "string"
+
 
 def test_streaming_mode(sample_data):
     files = sample_data

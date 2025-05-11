@@ -1,5 +1,0 @@
-training_files: 
-  -  data/processed/train.txt
-  -  data/processed/val.txt
-  -  data/processed/test.txt
-save_dir: artifacts/tokenizer/bpe/bpe8k

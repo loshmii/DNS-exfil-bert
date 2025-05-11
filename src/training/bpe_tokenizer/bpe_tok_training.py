@@ -13,13 +13,13 @@ with hydra.initialize_config_dir(
 ):
     cfg = hydra.compose(
         config_name="config",
-        overrides=["tokenizer=bpe8k"],
+        overrides=["tokenizer=bpe8k_for_training"],
         return_hydra_config=True,
     )
     HydraConfig().set_config(cfg)
     tok_cfg = BpeTokConfig(cfg.tokenizer)
-    files = [str(f) for f in cfg.training.tokenizer.training_files]
-    save_dir = str(cfg.training.tokenizer.save_dir)
+    files = [str(f) for f in cfg.tokenizer.training_files]
+    save_dir = str(cfg.tokenizer.save_dir)
     print(tok_cfg)
     print(files)
     print(save_dir)
@@ -29,6 +29,6 @@ with hydra.initialize_config_dir(
     print("Example tokenized text:", tok.encode("hello"))
     print(
         "Tokenizer created and saved at:",
-        cfg["training"]["tokenizer"]["save_dir"],
+        cfg["tokenizer"]["save_dir"],
     )
     print("Passed")

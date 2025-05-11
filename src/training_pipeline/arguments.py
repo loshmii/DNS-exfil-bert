@@ -3,7 +3,6 @@ from transformers import TrainingArguments
 import torch
 import hydra
 from pathlib import Path
-from typing import Optional, Union, Literal
 from omegaconf import OmegaConf
 from hydra.core.hydra_config import HydraConfig
 
@@ -73,29 +72,6 @@ class MLMTrainingArguments(TrainingArguments):
 
 
 @dataclass
-class DataArguments:
-    root: Union[str, Path] = field(
-        metadata={"help": "Path to the root directory of the dataset."}
-    )
-    layout: Literal["raw", "processed"] = field(
-        default="processed",
-        metadata={"help": "Layout of the dataset. raw | processed"},
-    )
-    block_size: int = field(
-        default=128,
-        metadata={"help": "Input sequence length after tokenization."},
-    )
-
-    def __post_init__(self):
-        if self.block_size <= 0:
-            raise ValueError(f"block_size must be > 0, got {self.block_size}.")
-        if self.layout not in {"raw", "processed"}:
-            raise ValueError(
-                f"layout must be 'raw' or 'processed', got {self.layout}."
-            )
-
-
-@dataclass
 class ModelArguments:
     config_name: str = field(
         default="google-bert/bert-base-uncased",
@@ -118,9 +94,8 @@ class ModelArguments:
 def parse_dataclasses(cfg):
     return (
         ModelArguments(**OmegaConf.to_container(cfg.model, resolve=True)),
-        DataArguments(**OmegaConf.to_container(cfg.data, resolve=True)),
         MLMTrainingArguments(
-            **OmegaConf.to_container(cfg.train, resolve=True)
+            **OmegaConf.to_container(cfg.training_arguments, resolve=True)
         ),
     )
 
@@ -133,7 +108,6 @@ if __name__ == "__main__":
     ):
         cfg = hydra.compose(config_name="config", return_hydra_config=True)
         HydraConfig().set_config(cfg)
-        model_args, data_args, train_args = parse_dataclasses(cfg)
+        model_args, train_args = parse_dataclasses(cfg)
         print(model_args)
-        print(data_args)
         print(train_args)

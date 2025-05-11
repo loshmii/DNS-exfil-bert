@@ -7,6 +7,7 @@ from datasets import (
     load_dataset,
 )
 from datasets.features import Features, Value
+from omegaconf import OmegaConf
 
 
 class DnsDatasetBuilder(GeneratorBasedBuilder):
@@ -39,9 +40,7 @@ class DnsDatasetBuilder(GeneratorBasedBuilder):
                 Split.VALIDATION,
                 gen_kwargs={"filepath": files["validation"]},
             ),
-            SplitGenerator(
-                Split.TEST, gen_kwargs={"filepath": files["test"]}
-            ),
+            SplitGenerator(Split.TEST, gen_kwargs={"filepath": files["test"]}),
         ]
 
     def _generate_examples(self, filepath):
@@ -64,16 +63,16 @@ if __name__ == "__main__":
     ):
         cfg = hydra.compose(
             config_name="config",
-            overrides=["tokenizer=bpe_from_pretrained", "model=bert_for_mlm", "dataset=dataset_for_mlm"],
+            overrides=[
+                "tokenizer=bpe8k_pretrained",
+                "model=bert_uncased",
+                "dataset=dataset_for_mlm",
+            ],
             return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)
 
-    data_files = {
-        "train": [str(f) for f in cfg.dataset.files.train],
-        "validation": [str(f) for f in cfg.dataset.files.validation],
-        "test": [str(f) for f in cfg.dataset.files.test],
-    }
+    data_files = OmegaConf.to_container(cfg.dataset.files, resolve=True)
 
     ds = load_dataset(
         path="src/training_pipeline/dataset_builder.py",

@@ -8,6 +8,7 @@ from pathlib import Path
 from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
     BpeTokenizer,
 )
+from hydra.core.hydra_config import HydraConfig
 
 domain_start = st.from_regex(r"(?:[a-z0-9\-]+\.)+[a-z]{2,}", fullmatch=True)
 
@@ -21,15 +22,17 @@ def cfg() -> DictConfig:
     ):
         cfg = compose(
             config_name="config",
-            overrides=["tokenizer=bpe8k", "hydra.run.dir=."],
+            overrides=["tokenizer=bpe8k_pretrained"],
+            return_hydra_config=True,
         )
+        HydraConfig().set_config(cfg)
     return cfg
 
 
 @given(domain_str=domain_start)
 def test_roundtrip(domain_str: str, cfg: DictConfig):
     tokenizer = BpeTokenizer.from_pretrained(
-        path=Path(to_absolute_path(cfg.training.tokenizer.save_dir))
+        path=Path(to_absolute_path(cfg.tokenizer.path))
     )
     ids = tokenizer(domain_str, add_special_tokens=False)["input_ids"]
     recovered = tokenizer.decode(ids, skip_special_tokens=True)

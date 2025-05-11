@@ -11,7 +11,7 @@ from pathlib import Path
 @pytest.fixture(scope="module")
 def tokenizer() -> CharTokenizer:
     cfg = get_config_for_char_tok(
-        Path("configs/tokenizer_char.yaml").resolve()
+        Path("configs/tokenizer/char.yaml").resolve()
     )
     return CharTokenizer(cfg)
 

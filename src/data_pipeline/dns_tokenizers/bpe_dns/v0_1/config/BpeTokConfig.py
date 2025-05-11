@@ -5,7 +5,7 @@ from pathlib import Path
 from jsonschema import validate as js_validate, ValidationError
 from omegaconf import DictConfig, OmegaConf
 
-DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent.parent
+DIR = Path.cwd()
 SCHEMA_PATH = DIR / "configs" / "bpe_tok_schema.json"
 _schema = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
 
@@ -107,23 +107,21 @@ def get_config_for_bpe_tok(config_src: Union[str, Path, Dict[str, Any]]):
 
 
 if __name__ == "__main__":
-    BASE_PATH = (
-        Path(__file__)
-        .resolve()
-        .parent.parent.parent.parent.parent.parent.parent
-    )
+    BASE_PATH = Path.cwd()
     config_from_file_str = BpeTokConfig(
-        str(BASE_PATH / "configs" / "bpe_tok.yaml")
+        str(BASE_PATH / "configs" / "tokenizer" / "bpe8k_for_training.yaml")
     )
-    config_from_Path = BpeTokConfig(BASE_PATH / "configs" / "bpe_tok.yaml")
+    config_from_Path = BpeTokConfig(
+        str(BASE_PATH / "configs" / "tokenizer" / "bpe8k_for_training.yaml")
+    )
     yaml_dict = yaml.safe_load(
-        Path(BASE_PATH / "configs" / "bpe_tok.yaml").read_text(
-            encoding="utf-8"
-        )
+        Path(
+            BASE_PATH / "configs" / "tokenizer" / "bpe8k_for_training.yaml"
+        ).read_text(encoding="utf-8")
     )
     config_from_dict = BpeTokConfig(yaml_dict)
     config_from_get = get_config_for_bpe_tok(
-        str(BASE_PATH / "configs" / "bpe_tok.yaml")
+        str(BASE_PATH / "configs" / "tokenizer" / "bpe8k_for_training.yaml")
     )
     print(config_from_file_str.max_length)
     assert config_from_file_str == config_from_Path

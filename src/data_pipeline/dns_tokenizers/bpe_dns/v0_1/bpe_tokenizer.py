@@ -132,21 +132,21 @@ class BpeTokenizer(PreTrainedTokenizerFast):
 
 
 if __name__ == "__main__":
-    DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
+    DIR = Path.cwd()
 
-    cfg = BpeTokConfig(DIR / "configs" / "bpe_tok_toy.yaml")
+    cfg = BpeTokConfig(DIR / "experiments" / "toy_cfgs" / "bpe_tok_toy.yaml")
     print(cfg.alphabet)
 
     tok = BpeTokenizer.from_scratch(
         cfg,
         files=[
-            DIR / "data" / "toy" / "BPETrainToy.txt",
+            DIR / "experiments" / "toy_artifacts" / "BPETrainToy.txt",
         ],
-        save_dir=DIR / "data" / "params" / "BpeTokenizer" / "toy",
+        save_dir=DIR / "experiments" / "toy_artifacts" / "params",
     )
 
     loaded_tok = BpeTokenizer.from_pretrained(
-        DIR / "data" / "params" / "BpeTokenizer" / "toy",
+        DIR / "experiments" / "toy_artifacts" / "params"
     )
     sample = "xn--example.com"
     assert tok(sample) == loaded_tok(sample)

@@ -1,0 +1,2 @@
+_target_: data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer.BpeTokenizer.from_pretrained
+path: ${hydra:runtime.cwd}/artifacts/tokenizer/bpe/bpe8k

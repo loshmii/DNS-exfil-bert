@@ -11,10 +11,12 @@ from data_pipeline.dns_tokenizers.bpe_dns.v0_1.config.BpeTokConfig import (
 def test_bpe_tokenizer_initialization():
     with tempfile.TemporaryDirectory() as tmpdir:
         BASE = Path.cwd()
-        cfg_path = BASE / "configs" / "bpe_tok_toy.yaml"
+        cfg_path = BASE / "experiments" / "toy_cfgs" / "bpe_tok_toy.yaml"
         cfg = BpeTokConfig(cfg_path)
 
-        files = [str(BASE / "data" / "toy" / "BPETrainToy.txt")]
+        files = [
+            str(BASE / "experiments" / "toy_artifacts" / "BPETrainToy.txt")
+        ]
         save_path = Path(tmpdir) / "tok"
         tok = BpeTokenizer.from_scratch(
             cfg=cfg, files=files, save_dir=save_path

@@ -2,6 +2,7 @@ from typing import Any, Dict, Union
 from dataclasses import dataclass, field
 import yaml
 from pathlib import Path
+from omegaconf import DictConfig, OmegaConf
 
 DEFAULTS: Dict[str, Any] = {
     "alphabet": "abcdefghijklmnopqrstuvwxyz0123456789-_.",
@@ -70,21 +71,20 @@ class CharTokConfig:
 
 
 def get_config_for_char_tok(
-    config_src: Union[str, Path, Dict[str, Any]],
+    config_src: Union[str, Path, Dict[str, Any], DictConfig],
 ) -> CharTokConfig:
     if isinstance(config_src, dict):
+        return CharTokConfig(config_src)
+    if isinstance(config_src, DictConfig):
+        config_src = OmegaConf.to_container(config_src, resolve=True)
         return CharTokConfig(config_src)
 
     return CharTokConfig.from_yaml(config_src)
 
 
 if __name__ == "__main__":
-    DIR = (
-        Path(__file__)
-        .resolve()
-        .parent.parent.parent.parent.parent.parent.parent
-    )
-    config_path = DIR / "configs" / "tokenizer_char.yaml"
+    DIR = Path.cwd()
+    config_path = DIR / "configs" / "tokenizer" / "char.yaml"
     cfg = get_config_for_char_tok(config_path)
     print(cfg.special_tokens["pad_token"])
     print(cfg.padding)

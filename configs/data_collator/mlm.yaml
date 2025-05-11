@@ -1,5 +1,0 @@
-mlm_probability: 0.15
-
-data_collator:
-  _target_: transformers.DataCollatorForLanguageModelling
-  tokenizer: ${tokenizer}

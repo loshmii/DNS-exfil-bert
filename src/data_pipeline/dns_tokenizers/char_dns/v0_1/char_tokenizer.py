@@ -139,8 +139,8 @@ class CharTokenizer(PreTrainedTokenizerFast):
 
 
 if __name__ == "__main__":
-    DIR = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
-    cfg_path = DIR / "configs" / "tokenizer_char.yaml"
+    DIR = Path.cwd()
+    cfg_path = DIR / "configs" / "tokenizer" / "char.yaml"
     cfg = get_config_for_char_tok(cfg_path)
     tokenizer = CharTokenizer(cfg)
     encodings = tokenizer(

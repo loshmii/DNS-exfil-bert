@@ -1,3 +1,0 @@
-root: ${hydra:runtime.cwd}
-layout: processed
-block_size: 128

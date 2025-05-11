@@ -1,2 +1,0 @@
-config_name: google-bert/bert-base-uncased
-tokenizer_name: BPETokenizer

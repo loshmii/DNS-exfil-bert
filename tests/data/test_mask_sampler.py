@@ -2,6 +2,7 @@ from training_pipeline.masker import MaskSampler
 import pytest
 import torch
 
+
 @pytest.fixture
 def dummy_inputs():
     batch, seq = 16, 32
@@ -10,6 +11,7 @@ def dummy_inputs():
     special = torch.zeros((batch, seq), dtype=torch.bool)
     special[:, 0] = True
     return input_ids, attn, special
+
 
 @pytest.mark.parametrize("strategy", ["token", "span"])
 def test_shape_and_specials(dummy_inputs, strategy):
@@ -26,6 +28,7 @@ def test_shape_and_specials(dummy_inputs, strategy):
     mask2 = sampler(input_ids, attn, special)
     assert (mask2[:, 5] == False).all()
 
+
 def test_token_prob(dummy_inputs):
     input_ids, attn, special = dummy_inputs
     p = 0.8
@@ -38,6 +41,7 @@ def test_token_prob(dummy_inputs):
     mask = sampler(input_ids, attn, special)
     frac = mask.sum().item() / mask.numel()
     assert abs(frac - p) < 0.05, f"Expected {p}, got {frac}"
+
 
 def test_randomness(dummy_inputs):
     input_ids, attn, special = dummy_inputs
@@ -55,7 +59,8 @@ def test_randomness(dummy_inputs):
     sampler.set_epoch(2)
     m3 = sampler(input_ids, attn, special)
     assert not torch.equal(m1, m3)
-    
+
+
 def test_span_one_per_row(dummy_inputs):
     input_ids, attn, special = dummy_inputs
     sampler = MaskSampler(
@@ -63,7 +68,7 @@ def test_span_one_per_row(dummy_inputs):
         span_lambda=1e9,
         strategy="span",
         seed=0,
-    ) 
+    )
     mask = sampler(input_ids, attn, special)
     counts = mask.sum(dim=1)
     assert (counts >= 1).all()
