@@ -24,13 +24,13 @@ class MaskSampler:
             self.base_generator = Generator().manual_seed(self._base_seed)
         else:
             self.base_generator = Generator()
-            self._base_seed = self.base_generator.initial_seed()
+            self._base_seed = int(self.base_generator.initial_seed())
         
         self._epoch = 0
 
     def set_epoch(self, epoch: int):
-        self._epoch = epoch
-    
+        self._epoch = int(epoch)
+        
     def __call__(self,
         input_ids: torch.LongTensor,
         attention_mask: torch.BoolTensor,
