@@ -6,7 +6,7 @@ gradient_accumulation_steps: 1
 learning_rate: 5e-5
 weight_decay: 0.01
 num_train_epochs: 3
-max_steps: 100
+max_steps: 20
 bf16: false
 fp16: false
 logging_strategy: steps

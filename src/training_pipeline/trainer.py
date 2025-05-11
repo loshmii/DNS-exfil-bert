@@ -192,7 +192,7 @@ if __name__ == "__main__":
     )
 
     train_ds = ds["train"]
-    eval_ds = ds["validation"]
+    eval_ds = ds["validation"].select(range(5))
 
     mask_sampler = MaskSampler(
         mlm_probability=train_args.mlm_probability,

@@ -17,7 +17,6 @@ class DnsDataCollatorForMLM:
         assert self.tokenizer.mask_token_id is not None, "tokenizer must have a mask token id under 'tokenizer.mask_token_id'"
 
     def __call__(self, features: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
-        print(f"features: {features}")
         batch = self.tokenizer.pad(
             features,
             return_tensors="pt",
