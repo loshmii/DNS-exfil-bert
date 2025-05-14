@@ -8,6 +8,9 @@ from datasets import (
 )
 from datasets.features import Features, Value
 from omegaconf import OmegaConf
+import hydra
+from hydra.core.hydra_config import HydraConfig
+from pathlib import Path
 
 
 class DnsDatasetBuilder(GeneratorBasedBuilder):
@@ -52,9 +55,6 @@ class DnsDatasetBuilder(GeneratorBasedBuilder):
 
 
 if __name__ == "__main__":
-    import hydra
-    from hydra.core.hydra_config import HydraConfig
-    from pathlib import Path
 
     with hydra.initialize_config_dir(
         config_dir=str(Path.cwd() / "configs"),

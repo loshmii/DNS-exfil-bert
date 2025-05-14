@@ -1,0 +1,12 @@
+files:
+  train:
+    - ${hydra:runtime.cwd}/data/raw/train/negative.csv
+    - ${hydra:runtime.cwd}/data/raw/train/positive.csv
+  validation:
+    - ${hydra:runtime.cwd}/data/raw/val/negative.csv
+    - ${hydra:runtime.cwd}/data/raw/val/positive.csv
+  test:
+    - ${hydra:runtime.cwd}/data/raw/test/negative.csv
+    - ${hydra:runtime.cwd}/data/raw/test/positive.csv
+
+data_dir: ${hydra:runtime.cwd}/data/processed/labeled_dataset
