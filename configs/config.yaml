@@ -3,3 +3,4 @@ defaults:
   - training_arguments: args_for_mlm
   - dataset: dataset_for_mlm
   - model: bert_uncased
+  - model_config: bert_config_from_pretrained
