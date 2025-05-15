@@ -95,7 +95,8 @@ def convert_to_arrow(data_files, output_dir):
 
     ds = load_dataset("csv", data_files=data_files)
 
-    splits = shuffle_and_split_dataset(ds)
+    #splits = shuffle_and_split_dataset(ds)
+    splits = ds
     splits.save_to_disk(str(path))
 
     return splits
@@ -110,11 +111,28 @@ if __name__ == "__main__":
         cfg = hydra.compose(
             config_name="config",
             overrides=[
+                "tokenizer=bpe8k_pretrained",
                 "dataset=dataset_for_labeled",
             ],
             return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)
     
-    ds = load_from_disk(cfg.dataset.data_dir)
-    print(ds["train"][0])
+    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
+    files_cfg = OmegaConf.to_container(cfg.dataset, resolve=True)
+    ds = load_from_disk(files_cfg["data_dir"])
+    def _tokenize(tokenizer, examples):
+        return tokenizer(
+            examples["Subdomain"],
+            truncation=True,
+            padding=True,
+            return_attention_mask=False,
+            return_special_tokens_mask=False,
+            return_tensors="pt",
+        )
+    ds = ds.map(
+        lambda x: _tokenize(tokenizer, x),
+        batched=True,
+        remove_columns=["Subdomain"],
+    )
+    print(ds)

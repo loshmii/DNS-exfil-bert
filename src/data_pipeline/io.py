@@ -85,11 +85,37 @@ class DomainValidator:
         if ".." in domain:
             return False
 
+        blacklisted_labels = set(
+            ["null",
+            "none",
+            "NaN",]
+        )
+
         labels = domain.split(".")
         for label in labels:
-            if not cls.LABEL_PATTERN.match(label):
+            if not cls.LABEL_PATTERN.match(label) or label in blacklisted_labels:
                 return False
+            
+        return True
+    
+class CSVQueryValidator:
+    LINE_PATTERN: ClassVar[re.Pattern] = re.compile(
+        r'^(?P<domain>[^,]+),(?P<label>[01])$'
+    )
 
+    @classmethod
+    def is_valid(cls, line: str) -> bool:
+        line = line.rstrip("\n\r")
+        m = cls.LINE_PATTERN.match(line)
+        if not m:
+            return False
+        
+        domain = m.group("domain")
+        label = m.group("label")
+
+        if not DomainValidator.is_valid(DomainNormalizer.normalize(domain)):
+            return False
+        
         return True
 
 
@@ -168,6 +194,64 @@ def raw_to_normalized(
 
     finally:
         for f in (*txt_files.values(), *lbl_files.values()):
+            f.close()
+
+def raw_to_normalized_csv(
+    raw_base: Union[str, Path],
+    out_base: Union[str, Path],
+    splits: Tuple[str, ...] = ("train", "val", "test"),
+    to_unicode: bool = False,
+):
+    
+    raw_base = Path(raw_base)
+    out_base = Path(out_base)
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    loader = RawSplitLoader(raw_base)
+    iterator = RawDataIterator(loader)
+
+    csv_files = {}
+    writers = {}
+    for split in splits:
+        f = open(out_base / f"{split}.csv", "w", encoding="utf-8", newline="")
+        w = csv.writer(f)
+        w.writerow(["text", "label"])
+        csv_files[split] = f
+        writers[split] = w
+
+    try:
+        for split in splits:
+            total = iterator.count_dmn_in_splt(split)
+            seen = valid = 0
+            start = time.perf_counter()
+
+            for _, raw_dom, label in tqdm(
+                iterator.iterate((split,)),
+                total=total,
+                desc=f"Normalizing {split}",
+                unit="doms",
+                colour="green",
+                dynamic_ncols=True,
+            ):
+                seen += 1
+
+                dom = DomainNormalizer.normalize(raw_dom, to_unicode)
+                label_str = str(label)
+                line = f"{dom},{label_str}"
+                if not CSVQueryValidator.is_valid(line):
+                    continue
+
+                writers[split].writerow([dom, label_str])
+                valid += 1
+            
+            elapsed = time.perf_counter() - start
+            rate = seen / elapsed if elapsed > 0 else 0.0
+            print(
+                f"[{split:5s}] kept {valid}/{seen}"
+                f"in {elapsed: .1f}s ({rate :.1f} dom/s)"
+            )
+    finally:
+        for f in csv_files.values():
             f.close()
 
 
@@ -262,14 +346,20 @@ def remove_duplicates(
 
 
 if __name__ == "__main__":
-    DIR = Path(__file__).resolve().parent.parent.parent
+    DIR = Path.cwd()
     print(DIR)
     raw_base = DIR / "data" / "raw"
-    out_base = DIR / "data" / "processed"
+    out_base_csv = DIR / "data" / "raw" / "normalized"
+    raw_to_normalized_csv(
+        raw_base,
+        out_base_csv,
+    )
+    """out_base = DIR / "data" / "processed"
     raw_to_normalized(
         raw_base,
         out_base,
     )
+
     splits = ("train", "val", "test")
     for split in splits:
         txt_path = out_base / f"{split}.txt"
@@ -278,4 +368,4 @@ if __name__ == "__main__":
         uniq_txt.replace(txt_path)
         uniq_lbl.replace(lbl_path)
         print(f"Removed duplicates from {split} split.")
-    print("All done.")
+    print("All done.")"""
