@@ -76,7 +76,7 @@ if __name__ == "__main__":
             return_attention_mask=True,
             return_token_type_ids=False,
         )
-    
+
     ds = ds.map(
         tokenize_fn,
         batched=True,
@@ -84,18 +84,16 @@ if __name__ == "__main__":
     )
 
     ds = concatenate_datasets([ds["train"], ds["validation"], ds["test"]])
-    splits = ds.train_test_split(
-        test_size=0.1,
-        seed=42
-    )
+    splits = ds.train_test_split(test_size=0.1, seed=42)
     train_eval_split = splits["train"]
     test_ds = splits["test"]
     train_eval_split = train_eval_split.train_test_split(
-        test_size=0.11111,
-        seed=42
+        test_size=0.11111, seed=42
     )
     train_ds = train_eval_split["train"]
-    val_ds = train_eval_split["test"].select(range(int(0.05 * train_ds.shape[0])))
+    val_ds = train_eval_split["test"].select(
+        range(int(0.05 * train_ds.shape[0]))
+    )
 
     mask_sampler = MaskSampler(
         mlm_probability=train_args.mlm_probability,
@@ -118,7 +116,7 @@ if __name__ == "__main__":
         callbacks=[
             MaskingCallback(data_collator),
             FileLoggingCallback(),
-        ]
+        ],
     )
 
     trainer.train()

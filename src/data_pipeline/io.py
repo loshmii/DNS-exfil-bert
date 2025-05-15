@@ -86,21 +86,27 @@ class DomainValidator:
             return False
 
         blacklisted_labels = set(
-            ["null",
-            "none",
-            "NaN",]
+            [
+                "null",
+                "none",
+                "NaN",
+            ]
         )
 
         labels = domain.split(".")
         for label in labels:
-            if not cls.LABEL_PATTERN.match(label) or label in blacklisted_labels:
+            if (
+                not cls.LABEL_PATTERN.match(label)
+                or label in blacklisted_labels
+            ):
                 return False
-            
+
         return True
-    
+
+
 class CSVQueryValidator:
     LINE_PATTERN: ClassVar[re.Pattern] = re.compile(
-        r'^(?P<domain>[^,]+),(?P<label>[01])$'
+        r"^(?P<domain>[^,]+),(?P<label>[01])$"
     )
 
     @classmethod
@@ -109,13 +115,13 @@ class CSVQueryValidator:
         m = cls.LINE_PATTERN.match(line)
         if not m:
             return False
-        
+
         domain = m.group("domain")
         label = m.group("label")
 
         if not DomainValidator.is_valid(DomainNormalizer.normalize(domain)):
             return False
-        
+
         return True
 
 
@@ -196,13 +202,14 @@ def raw_to_normalized(
         for f in (*txt_files.values(), *lbl_files.values()):
             f.close()
 
+
 def raw_to_normalized_csv(
     raw_base: Union[str, Path],
     out_base: Union[str, Path],
     splits: Tuple[str, ...] = ("train", "val", "test"),
     to_unicode: bool = False,
 ):
-    
+
     raw_base = Path(raw_base)
     out_base = Path(out_base)
     out_base.mkdir(parents=True, exist_ok=True)
@@ -243,7 +250,7 @@ def raw_to_normalized_csv(
 
                 writers[split].writerow([dom, label_str])
                 valid += 1
-            
+
             elapsed = time.perf_counter() - start
             rate = seen / elapsed if elapsed > 0 else 0.0
             print(

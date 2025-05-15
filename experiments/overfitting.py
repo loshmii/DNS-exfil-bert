@@ -29,7 +29,7 @@ if __name__ == "__main__":
             overrides=[
                 "tokenizer=bpe8k_pretrained",
                 "training_arguments=overfitting",
-                "training_arguments.optimizer_type=adamw"
+                "training_arguments.optimizer_type=adamw",
             ],
             return_hydra_config=True,
         )
@@ -54,8 +54,10 @@ if __name__ == "__main__":
     root.addHandler(ch)
 
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
-    model_cfg = BertConfig(**OmegaConf.to_container(cfg.model_config, resolve=True), 
-        vocab_size=tokenizer.vocab_size)
+    model_cfg = BertConfig(
+        **OmegaConf.to_container(cfg.model_config, resolve=True),
+        vocab_size=tokenizer.vocab_size
+    )
     model = AutoModelForMaskedLM.from_config(model_cfg)
 
     data_files = {

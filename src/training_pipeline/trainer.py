@@ -129,7 +129,11 @@ if __name__ == "__main__":
     ):
         cfg = hydra.compose(
             config_name="config",
-            overrides=["tokenizer=bpe8k_pretrained", "model=bert_uncased", "model_config=bert_config_from_pretrained"],
+            overrides=[
+                "tokenizer=bpe8k_pretrained",
+                "model=bert_uncased",
+                "model_config=bert_config_from_pretrained",
+            ],
             return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)
@@ -153,8 +157,10 @@ if __name__ == "__main__":
     root.addHandler(ch)
 
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
-    model_cfg = BertConfig(**OmegaConf.to_container(cfg.model_config, resolve=True), 
-        vocab_size=tokenizer.vocab_size)
+    model_cfg = BertConfig(
+        **OmegaConf.to_container(cfg.model_config, resolve=True),
+        vocab_size=tokenizer.vocab_size,
+    )
     model = AutoModelForMaskedLM.from_config(model_cfg)
 
     data_files = OmegaConf.to_container(cfg.dataset.files, resolve=True)

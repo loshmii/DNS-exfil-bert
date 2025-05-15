@@ -20,9 +20,13 @@ class DnsDatasetBuilder(ABC):
     cache_dir: Optional[str] = None
 
     def build(self) -> DatasetDict:
-        if self.cache_dir and Path(self.cache_dir).exists() and any(Path(self.cache_dir).iterdir()):
+        if (
+            self.cache_dir
+            and Path(self.cache_dir).exists()
+            and any(Path(self.cache_dir).iterdir())
+        ):
             return load_from_disk(self.cache_dir)
-        
+
         ds = self._load_raw()
         ds = self._dedupe(ds)
         ds = ds.map(self._tokenize, batched=True, remove_columns=["text"])
@@ -41,10 +45,10 @@ class DnsDatasetBuilder(ABC):
             "csv",
             data_files=self.raw_files,
         )
-    
+
     def _dedupe(self, ds: DatasetDict) -> DatasetDict:
         return ds
-    
+
     def _tokenize(self, examples):
         return self.tokenizer(
             examples["text"],
@@ -57,14 +61,15 @@ class DnsDatasetBuilder(ABC):
         )
 
     @abstractmethod
-    def _postprocess(self, ds: DatasetDict) -> DatasetDict:
-        ...
+    def _postprocess(self, ds: DatasetDict) -> DatasetDict: ...
+
 
 class MLMDatasetBuilder(DnsDatasetBuilder):
 
     def _postprocess(self, ds):
         return ds
-    
+
+
 class CLSDatasetBuilder(DnsDatasetBuilder):
     label2id: Optional[Dict[str, int]] = None
     label2id = {
@@ -79,6 +84,7 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
 
         return ds.map(add_label, batched=True)
 
+
 if __name__ == "__main__":
     with hydra.initialize_config_dir(
         config_dir=str(Path.cwd() / "configs"),
@@ -87,11 +93,14 @@ if __name__ == "__main__":
     ):
         cfg = hydra.compose(
             config_name="config",
-            overrides=["tokenizer=bpe8k_pretrained", "dataset=dataset_for_labeled"],
+            overrides=[
+                "tokenizer=bpe8k_pretrained",
+                "dataset=dataset_for_labeled",
+            ],
             return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)
-    
+
     tokenizer = hydra.utils.instantiate(cfg.tokenizer)
     data_files = OmegaConf.to_container(cfg.dataset.files, resolve=True)
 
@@ -100,9 +109,10 @@ if __name__ == "__main__":
         tokenizer=tokenizer,
         max_length=tokenizer.model_max_length,
         streaming=True,
-        cache_dir=str(Path.cwd() / "experiments" / "cache"),  # TODO: make this configurable
+        cache_dir=str(
+            Path.cwd() / "experiments" / "cache"
+        ),  # TODO: make this configurable
     )
-
 
     ds = builder.build()
     print(ds)

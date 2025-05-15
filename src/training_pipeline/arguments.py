@@ -7,6 +7,7 @@ from omegaconf import OmegaConf
 from hydra.core.hydra_config import HydraConfig
 from typing import Optional
 
+
 @dataclass
 class MLMTrainingArguments(TrainingArguments):
     mlm_probability: float = field(
