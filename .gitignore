@@ -25,7 +25,8 @@ experiments/**/checkpoints/
 .pytest_cache/
 outputs/
 
-data/
+data/raw/
+data/processed/
 experiments/conv_test/
 *.tsv
 *.jsonl
