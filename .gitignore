@@ -25,10 +25,11 @@ experiments/**/checkpoints/
 .pytest_cache/
 outputs/
 
+data/
 experiments/conv_test/
 *.tsv
 *.jsonl
-
+*.csv
 ~/.cache/huggingface/
 **/cache/
 **/checkpoints/
