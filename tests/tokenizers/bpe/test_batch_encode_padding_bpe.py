@@ -4,8 +4,9 @@ from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
 )
 from hydra import initialize_config_dir, compose
 from hydra.utils import to_absolute_path
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
+from hydra.core.hydra_config import HydraConfig
 
 BASE = Path(__file__).parent.parent.parent.parent.resolve()
 
@@ -19,22 +20,26 @@ def cfg() -> DictConfig:
     ):
         cfg = compose(
             config_name="bpe_test_config",
-            overrides=["tokenizer=bpe8k", "hydra.run.dir=."],
+            overrides=[
+                "tokenizer=bpe8k_pretrained",
+                f"+paths.root={BASE}"
+            ],
+            return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)
     return cfg
 
 
 def test_tok_build_bpe(cfg: DictConfig):
-    tok = BpeTokenizer.from_pretrained(
-        path=Path(to_absolute_path(cfg.tokenizer.path))
+    tokenizer = BpeTokenizer.from_pretrained(
+        **OmegaConf.to_container(cfg.tokenizer, resolve=True),
     )
-    assert isinstance(tok, BpeTokenizer)
+    assert isinstance(tokenizer, BpeTokenizer)
 
 
 def test_padding_and_attention_mask_bpe(cfg: DictConfig):
     tokenizer = BpeTokenizer.from_pretrained(
-        path=Path(to_absolute_path(cfg.tokenizer.path))
+        **OmegaConf.to_container(cfg.tokenizer, resolve=True),
     )
     input_strings = [
         "a",
