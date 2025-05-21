@@ -83,17 +83,12 @@ def get_config_for_char_tok(
 
 
 if __name__ == "__main__":
-<<<<<<<< Updated upstream:src/data_pipeline/dns_tokenizers/char_dns/v0_1/config/CharTokConfig.py
-    DIR = Path.cwd()
-    config_path = DIR / "configs" / "tokenizer" / "char.yaml"
-========
     DIR = (
         Path(__file__)
         .resolve()
         .parent.parent.parent.parent.parent.parent.parent
     )
-    config_path = DIR / "configs" / "tokenizer_char.yaml"
->>>>>>>> Stashed changes:src/data_pipeline/tokenizers/char_dns/v0_1/config/CharTokConfig.py
+    config_path = DIR / "configs" / "tokenizer" / "char.yaml"
     cfg = get_config_for_char_tok(config_path)
     print(cfg.special_tokens["pad_token"])
     print(cfg.padding)
