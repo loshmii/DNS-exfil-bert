@@ -3,20 +3,23 @@ import pytest
 
 from training_pipeline.data_collator import DnsDataCollatorForMLM
 
+
 @pytest.fixture(autouse=True)
 def skip_post_init(monkeypatch):
     monkeypatch.setattr(
-        DnsDataCollatorForMLM, 
-        "__post_init__", 
-        lambda self: None
+        DnsDataCollatorForMLM, "__post_init__", lambda self: None
     )
+
 
 class DummyTokenizer:
     def __init__(self):
         self.mask_token_id = 1
         self.pad_token_id = 0
         self.vocab_size = 256
-        self.special_tokens_map = {"mask_token": self.mask_token_id, "pad_token": self.pad_token_id}
+        self.special_tokens_map = {
+            "mask_token": self.mask_token_id,
+            "pad_token": self.pad_token_id,
+        }
 
     def pad(self, features, return_tensors="pt", pad_to_multiple_of=None):
         lengths = [len(f["input_ids"]) for f in features]
@@ -41,9 +44,14 @@ class DummyTokenizer:
 
         return {
             "input_ids": torch.tensor(batch_input_ids, dtype=torch.long),
-            "attention_mask": torch.tensor(batch_attention_mask, dtype=torch.long),
-            "special_tokens_mask": torch.tensor(batch_special_tokens_mask, dtype=torch.long),
+            "attention_mask": torch.tensor(
+                batch_attention_mask, dtype=torch.long
+            ),
+            "special_tokens_mask": torch.tensor(
+                batch_special_tokens_mask, dtype=torch.long
+            ),
         }
+
 
 class DummyMaskSampler:
     def __init__(self, mask_positions):
@@ -84,7 +92,7 @@ def test_shaped_and_padding_and_types():
     assert input_ids.dtype == torch.long
     assert attention_mask.dtype == torch.long
 
-    pad_positions = (input_ids == tokenizer.pad_token_id)
+    pad_positions = input_ids == tokenizer.pad_token_id
     non_pad_positions = ~pad_positions
     assert torch.all(attention_mask[pad_positions] == 0)
     assert torch.all(attention_mask[non_pad_positions] == 1)
@@ -117,12 +125,13 @@ def test_masking_and_label_assignment():
         assert input_ids[b, s].item() == tokenizer.mask_token_id
         assert labels[b, s].item() == features[b]["input_ids"][s]
 
-    pad_positions = (input_ids == tokenizer.pad_token_id)
+    pad_positions = input_ids == tokenizer.pad_token_id
     applied_mask = sampler(input_ids)
     non_pad_non_mask = (~pad_positions) & (~applied_mask)
     assert torch.all(labels[non_pad_non_mask] == -100)
 
     assert torch.all(labels[pad_positions] == -100)
+
 
 def test_mask_random_untouched_distribution():
     torch.manual_seed(0)
@@ -136,7 +145,9 @@ def test_mask_random_untouched_distribution():
     tokenizer.vocab_size = 10
 
     original_id = 100
-    features = [{"input_ids": [original_id] * seq_len} for _ in range(batch_size)]
+    features = [
+        {"input_ids": [original_id] * seq_len} for _ in range(batch_size)
+    ]
 
     class FullMaskSampler:
         def __call__(self, input_ids, **kwargs):
@@ -156,7 +167,14 @@ def test_mask_random_untouched_distribution():
     input_ids = batch["input_ids"]
 
     mask_count = (input_ids == tokenizer.mask_token_id).sum().item()
-    random_count = ((input_ids != tokenizer.mask_token_id) & (input_ids < tokenizer.vocab_size)).sum().item()
+    random_count = (
+        (
+            (input_ids != tokenizer.mask_token_id)
+            & (input_ids < tokenizer.vocab_size)
+        )
+        .sum()
+        .item()
+    )
     untouched_count = (input_ids == original_id).sum().item()
     assert mask_count + random_count + untouched_count == N
 
@@ -165,6 +183,7 @@ def test_mask_random_untouched_distribution():
     untouched_ratio = untouched_count / N
 
     import math
+
     tolerance_mask = 3 * math.sqrt(p_mask * (1 - p_mask) / N)
     tolerance_random = 3 * math.sqrt(p_random * (1 - p_random) / N)
     p_untouched = 1 - p_mask - p_random

@@ -9,6 +9,7 @@ from training_pipeline.builders import (
     DnsDatasetBuilder,
 )
 
+
 class DummyTokenizer:
     def __init__(self, max_seq_len):
         self.model_max_length = max_seq_len
@@ -16,7 +17,11 @@ class DummyTokenizer:
     def __call__(self, texts, max_length=None, **kwargs):
         seqs = []
         for text in texts:
-            ml = max_length if max_length and max_length < self.model_max_length else self.model_max_length
+            ml = (
+                max_length
+                if max_length and max_length < self.model_max_length
+                else self.model_max_length
+            )
             ids = [ord(c) for c in text][:ml]
             seqs.append(ids)
         return {
@@ -24,6 +29,7 @@ class DummyTokenizer:
             "attention_mask": [[1] * len(seq) for seq in seqs],
             "special_tokens_mask": [[0] * len(seq) for seq in seqs],
         }
+
 
 @pytest.fixture
 def dummy_csv(tmp_path):
@@ -50,7 +56,7 @@ def test_mlm_dataset_builder_splits_and_tokenization(dummy_csv):
         tokenizer=tokenizer,
         streaming=False,
         max_length=max_len,
-        proportion=(1/3, 1/3, 1/3),
+        proportion=(1 / 3, 1 / 3, 1 / 3),
     )
 
     ds = builder.build()
@@ -64,6 +70,7 @@ def test_mlm_dataset_builder_splits_and_tokenization(dummy_csv):
         assert isinstance(input_ids, torch.Tensor)
         assert 1 <= len(input_ids) <= max_len
 
+
 def test_cls_dataset_builder_splits_and_labels(dummy_csv):
     data_files = dummy_csv
     max_len = 4
@@ -73,7 +80,7 @@ def test_cls_dataset_builder_splits_and_labels(dummy_csv):
         tokenizer=tokenizer,
         streaming=False,
         max_length=max_len,
-        proportion=(1/3, 1/3, 1/3),
+        proportion=(1 / 3, 1 / 3, 1 / 3),
     )
 
     ds = builder.build()

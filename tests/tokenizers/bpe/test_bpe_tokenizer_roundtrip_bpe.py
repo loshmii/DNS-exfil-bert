@@ -23,10 +23,7 @@ def cfg() -> DictConfig:
     ):
         cfg = compose(
             config_name="bpe_test_config",
-            overrides=[
-                "tokenizer=bpe8k_pretrained",
-                f"+paths.root={BASE}"
-            ],
+            overrides=["tokenizer=bpe8k_pretrained", f"+paths.root={BASE}"],
             return_hydra_config=True,
         )
         HydraConfig().set_config(cfg)

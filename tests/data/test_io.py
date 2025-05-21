@@ -3,6 +3,7 @@ import data_pipeline.io as io
 from pathlib import Path
 import csv
 
+
 def test_list_files_flat_and_nested(tmp_path):
     raw = tmp_path / "raw"
 

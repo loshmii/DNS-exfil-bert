@@ -12,7 +12,9 @@ BASE = Path(__file__).parent.parent.parent.parent.resolve()
 
 def test_bpe_tokenizer_initialization():
     with tempfile.TemporaryDirectory() as tmpdir:
-        cfg_path = str(BASE / "experiments" / "toy_artifacts" / "params" / "config.yaml")
+        cfg_path = str(
+            BASE / "experiments" / "toy_artifacts" / "params" / "config.yaml"
+        )
         cfg = BpeTokConfig(cfg_path)
 
         files = [

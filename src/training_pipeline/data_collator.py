@@ -34,11 +34,15 @@ class DnsDataCollatorForMLM:
             raise ValueError(
                 "mask_token_prob + random_token_prob must be less than or equal to 1.0"
             )
-        if self.mask_token_prob < 0.0 or self.random_token_prob < 0.0 or self.mask_token_prob > 1.0 or self.random_token_prob > 1.0:
+        if (
+            self.mask_token_prob < 0.0
+            or self.random_token_prob < 0.0
+            or self.mask_token_prob > 1.0
+            or self.random_token_prob > 1.0
+        ):
             raise ValueError(
                 "mask_token_prob and random_token_prob must be between 0.0 and 1.0"
             )
-        
 
     def __call__(
         self, features: List[Dict[str, torch.Tensor]]
@@ -80,7 +84,14 @@ class DnsDataCollatorForMLM:
             & (probs < self.mask_token_prob + self.random_token_prob)
         )
         ids = torch.where(
-            flag2, torch.randint(low=len(self.tokenizer.special_tokens_map), high=vocab_size, size=ids.shape, device=device), ids
+            flag2,
+            torch.randint(
+                low=len(self.tokenizer.special_tokens_map),
+                high=vocab_size,
+                size=ids.shape,
+                device=device,
+            ),
+            ids,
         ).long()
 
         batch["input_ids"] = ids

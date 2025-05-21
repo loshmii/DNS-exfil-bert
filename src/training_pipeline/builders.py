@@ -31,7 +31,9 @@ class DnsDatasetBuilder(ABC):
     tokenizer: PreTrainedTokenizerFast
     streaming: bool = False
     max_length: Optional[int] = None
-    proportion: Optional[Union[DictConfig, Dict, Tuple[float, float, float]]] = None
+    proportion: Optional[
+        Union[DictConfig, Dict, Tuple[float, float, float]]
+    ] = None
     cache_dir: Optional[str] = None
     force_rebuild: Optional[bool] = False
     seed: Optional[int] = 42
@@ -152,7 +154,9 @@ class DnsDatasetBuilder(ABC):
 
         val_ds, test_ds = (
             tr_vs_rest["test"]
-            .train_test_split(train_size=frac_val_of_rest, shuffle=True, seed=self.seed)
+            .train_test_split(
+                train_size=frac_val_of_rest, shuffle=True, seed=self.seed
+            )
             .values()
         )
 

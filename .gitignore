@@ -4,8 +4,10 @@ __pycache__/
 .hypothesis/**
 .pytest_cache/
 
-data/
-docs/
+/data/
+
+!tests/data/
+!tests/data/**/
 
 experiments/**
 !experiments/** *.py
