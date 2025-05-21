@@ -31,7 +31,7 @@ class DnsDatasetBuilder(ABC):
     tokenizer: PreTrainedTokenizerFast
     streaming: bool = False
     max_length: Optional[int] = None
-    proportion: Optional[Union[DictConfig, Dict, Tuple[int, int, int]]] = None
+    proportion: Optional[Union[DictConfig, Dict, Tuple[float, float, float]]] = None
     cache_dir: Optional[str] = None
     force_rebuild: Optional[bool] = False
     seed: Optional[int] = 42
@@ -97,7 +97,7 @@ class DnsDatasetBuilder(ABC):
         if self.force_rebuild and cache_path and cache_path.exists():
             shutil.rmtree(cache_path)
 
-        if cache_path.exists() and meta_path.exists():
+        if cache_path and cache_path.exists() and meta_path.exists():
             try:
                 saved = json.loads(meta_path.read_text())
                 if self._is_cache_valid(saved):
@@ -140,16 +140,19 @@ class DnsDatasetBuilder(ABC):
 
     def _split(self, full: Dataset) -> DatasetDict:
         p_train, p_val, p_test = self.proportion
-        total = full.num_rows
-        n_train = int(p_train * total)
-        n_val = int(p_val * total)
+
         tr_vs_rest = full.train_test_split(
-            train_size=n_train, shuffle=True, seed=self.seed
+            train_size=p_train,
+            shuffle=True,
+            seed=self.seed,
         )
         train_ds = tr_vs_rest["train"]
+
+        frac_val_of_rest = p_val / (p_val + p_test)
+
         val_ds, test_ds = (
             tr_vs_rest["test"]
-            .train_test_split(train_size=n_val, shuffle=True, seed=self.seed)
+            .train_test_split(train_size=frac_val_of_rest, shuffle=True, seed=self.seed)
             .values()
         )
 

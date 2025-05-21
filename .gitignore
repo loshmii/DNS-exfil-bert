@@ -12,6 +12,4 @@ experiments/**
 notebooks/
 outputs/
 
-tests/
-
 artifacts/models/**
