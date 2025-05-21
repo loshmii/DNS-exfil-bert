@@ -1,4 +1,0 @@
-# file: C:\Users\tomic\ml\projects\dns_exfil_mbert\src\data_pipeline\io.py
-# hypothesis_version: 6.131.9
-
-[0.0, 253, 50000, '*.csv', '.', '..', 'All done.', 'Exporting rows', 'Inserting rows', '\\.{2,}', '__main__', 'data', 'doms', 'green', 'negative', 'positive', 'processed', 'r', 'raw', 'rows', 'test', 'train', 'utf-8', 'val', 'w', 'www.']
