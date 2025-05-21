@@ -17,6 +17,39 @@ import logging
 from training_pipeline.masker import MaskSampler
 from training_pipeline.data_collator import DnsDataCollatorForMLM
 from omegaconf import OmegaConf
+from training_pipeline.builders import MLMDatasetBuilder
+from transformers.integrations import TensorBoardCallback
+from omegaconf import DictConfig, OmegaConf
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
+    BpeTokenizer,
+)
+from training_pipeline.metrics import StreamingMetricsCallback
+import torchmetrics
+import time
+
+
+def argmax_logits(logits, labels):
+    return logits.argmax(dim=-1)
+
+
+class PerplexityCallback(TrainerCallback):
+    def on_log(
+        self,
+        args,
+        state: TrainerState,
+        control: TrainerControl,
+        logs=None,
+        **kwargs,
+    ):
+        if logs is None:
+            return control
+        if "loss" in logs:
+            logs["perplexity"] = torch.exp(torch.tensor(logs["loss"])).item()
+        if "eval_loss" in logs:
+            logs["eval_perplexity"] = torch.exp(
+                torch.tensor(logs["eval_loss"])
+            ).item()
+        return control
 
 
 class MaskingCallback(TrainerCallback):
@@ -50,8 +83,84 @@ class FileLoggingCallback(TrainerCallback):
 
 
 class MLMTrainer(Trainer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ignore_index=-100, **kwargs):
+        kwargs["preprocess_logits_for_metrics"] = argmax_logits
         super().__init__(*args, **kwargs)
+        self.ignore_index = ignore_index
+        self.acc = torchmetrics.Accuracy(
+            task="multiclass",
+            num_classes=self.model.config.vocab_size,
+            average="micro",
+            ignore_index=self.ignore_index,
+        ).to(self.model.device)
+
+    def prediction_step(
+        self, model, inputs, prediction_loss_only, ignore_keys=None
+    ):
+        result = super().prediction_step(
+            model, inputs, prediction_loss_only, ignore_keys
+        )
+        _, logits, labels = result[:3]
+
+        if (
+            logits is not None
+            and labels is not None
+            and not prediction_loss_only
+        ):
+            preds = logits
+            mask = labels.ne(self.ignore_index)
+            self.acc.update(preds[mask], labels[mask])
+
+        return result
+
+    def evaluate(
+        self,
+        eval_dataset=None,
+        ignore_keys=None,
+        metric_key_prefix="eval",
+        **gen_kwargs,
+    ):
+        eval_dataset = (
+            eval_dataset if eval_dataset is not None else self.eval_dataset
+        )
+        eval_dataloader = self.get_eval_dataloader(eval_dataset)
+
+        start_time = time.time()
+        output = self.evaluation_loop(
+            eval_dataloader,
+            description="Evaluation",
+            prediction_loss_only=self.args.prediction_loss_only,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
+            **gen_kwargs,
+        )
+
+        total_batch_size = self.args.eval_batch_size * max(
+            1, self.args.world_size
+        )
+        output.metrics[f"{metric_key_prefix}_runtime"] = (
+            time.time() - start_time
+        )
+        output.metrics[f"{metric_key_prefix}_samples_per_second"] = (
+            total_batch_size / output.metrics[f"{metric_key_prefix}_runtime"]
+        )
+        output.metrics[f"{metric_key_prefix}_steps_per_second"] = (
+            total_batch_size
+            / output.metrics[f"{metric_key_prefix}_samples_per_second"]
+        )
+        if not ignore_keys or "masked_accuracy" not in ignore_keys:
+            output.metrics[f"{metric_key_prefix}_masked_accuracy"] = (
+                self.acc.compute().item()
+            )
+            self.acc.reset()
+
+        self.control = self.callback_handler.on_evaluate(
+            self.args, self.state, self.control, output.metrics
+        )
+
+        self.log(output.metrics)
+
+        return output.metrics
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         outputs = model(**inputs)
@@ -121,22 +230,12 @@ class MLMTrainer(Trainer):
         return self.lr_scheduler
 
 
-if __name__ == "__main__":
-    with hydra.initialize_config_dir(
-        config_dir=str(Path.cwd() / "configs"),
-        job_name="trainer_test",
-        version_base="1.3",
-    ):
-        cfg = hydra.compose(
-            config_name="config",
-            overrides=[
-                "tokenizer=bpe8k_pretrained",
-                "model=bert_uncased",
-                "model_config=bert_config_from_pretrained",
-            ],
-            return_hydra_config=True,
-        )
-        HydraConfig().set_config(cfg)
+@hydra.main(
+    config_path=str(Path(__file__).parent.parent.parent / "configs"),
+    config_name="config",
+    version_base="1.3",
+)
+def main(cfg: DictConfig):
 
     model_args, train_args = parse_dataclasses(cfg)
 
@@ -156,50 +255,39 @@ if __name__ == "__main__":
     ch.setFormatter(fmt)
     root.addHandler(ch)
 
-    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
+    tokenizer = BpeTokenizer.from_pretrained(
+        **OmegaConf.to_container(cfg.tokenizer, resolve=True),
+    )
+
     model_cfg = BertConfig(
         **OmegaConf.to_container(cfg.model_config, resolve=True),
         vocab_size=tokenizer.vocab_size,
     )
+
     model = AutoModelForMaskedLM.from_config(model_cfg)
 
-    data_files = OmegaConf.to_container(cfg.dataset.files, resolve=True)
-
-    ds = load_dataset(
-        path="src/training_pipeline/dataset_builder.py",
-        name="default",
-        data_files=data_files,
-        streaming=False,
-        trust_remote_code=True,
+    builder = MLMDatasetBuilder(
+        tokenizer=tokenizer,
+        **OmegaConf.to_container(cfg.dataset.builder_args, resolve=True),
     )
+    ds = builder.build()
 
-    def tokenize_fn(examples):
-        return tokenizer(
-            examples["text"],
-            padding=False,
-            truncation=True,
-            return_special_tokens_mask=True,
-            return_attention_mask=True,
-            return_token_type_ids=False,
-        )
-
-    ds = ds.map(
-        tokenize_fn,
-        batched=True,
-        remove_columns=["text"],
-    )
-
-    train_ds = ds["train"]
-    eval_ds = ds["validation"].select(range(5))
+    train_ds = ds["train"].select(range(50))
+    eval_ds = ds["validation"].select(range(10))
+    test_ds = ds["test"].select(range(10))
 
     mask_sampler = MaskSampler(
-        mlm_probability=train_args.mlm_probability,
-        strategy="token",
+        **OmegaConf.to_container(
+            cfg.training_arguments.mask_args, resolve=True
+        )
     )
 
     data_collator = DnsDataCollatorForMLM(
         tokenizer=tokenizer,
         mask_sampler=mask_sampler,
+        **OmegaConf.to_container(
+            cfg.training_arguments.collator_args, resolve=True
+        ),
     )
 
     trainer = MLMTrainer(
@@ -212,7 +300,19 @@ if __name__ == "__main__":
         callbacks=[
             MaskingCallback(data_collator),
             FileLoggingCallback(),
+            PerplexityCallback(),
+            TensorBoardCallback(),
         ],
+        compute_metrics=None,
     )
 
     trainer.train()
+
+    trainer.evaluate(
+        eval_dataset=eval_ds,
+        metric_key_prefix="test",
+    )
+
+
+if __name__ == "__main__":
+    main()

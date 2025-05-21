@@ -6,8 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "dns_exfil_mbert"
 version = "0.1.0"
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["*"]
 
 [tool.black]
 line-length = 79

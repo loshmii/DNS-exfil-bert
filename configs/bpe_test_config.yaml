@@ -1,0 +1,3 @@
+defaults:
+  - tokenizer: bpe8k
+  - training/tokenizer: bpe8k

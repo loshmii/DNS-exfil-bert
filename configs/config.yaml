@@ -1,4 +1,6 @@
 defaults:
+  - _self_
+  - paths
   - tokenizer: bpe8k_pretrained
   - training_arguments: args_for_mlm
   - dataset: dataset_for_mlm

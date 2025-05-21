@@ -1,7 +1,18 @@
 files:
   train:
-    - ${hydra:runtime.cwd}/data/processed/train.txt
+    - ${paths.data}/deduped/train.csv
   validation:
-    - ${hydra:runtime.cwd}/data/processed/val.txt
+    - ${paths.data}/deduped/val.csv
   test:
-    - ${hydra:runtime.cwd}/data/processed/test.txt
+    - ${paths.data}/deduped/test.csv
+
+builder_args:
+  raw_files: ${dataset.files}
+  streaming: false
+  max_length: 256
+  proportion: 
+    train: 0.8
+    validation: 0.1
+    test: 0.1
+  cache_dir: ${paths.root}/experiments/cache
+  force_rebuild: false

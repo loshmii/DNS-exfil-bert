@@ -6,20 +6,20 @@ from hydra import initialize_config_dir, compose
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig
 from pathlib import Path
-from hydra.core.hydra_config import HydraConfig
+
+BASE = Path(__file__).parent.parent.parent.parent.resolve()
 
 
 @pytest.fixture(scope="module")
 def cfg() -> DictConfig:
     with initialize_config_dir(
-        config_dir=str(Path.cwd() / "configs"),
+        config_dir=str(BASE / "configs"),
         job_name="test",
         version_base="1.3",
     ):
         cfg = compose(
-            config_name="config",
-            overrides=["tokenizer=bpe8k_pretrained", "hydra.run.dir=."],
-            return_hydra_config=True,
+            config_name="bpe_test_config",
+            overrides=["tokenizer=bpe8k", "hydra.run.dir=."],
         )
         HydraConfig().set_config(cfg)
     return cfg

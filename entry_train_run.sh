@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export DATASET=DNS
-export EXP_NAME=conv_test_bert_bpe8k
+export EXP_NAME=bert_base_12l_MLM_train_run
 
 EXPDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "Project root: $EXPDIR"
@@ -35,4 +35,6 @@ fi
 conda activate "${ENV_PREFIX}"
 pip install -e "${EXPDIR}"
 
-exec python "${EXPDIR}/experiments/conv_test_bert_bpe8k.py"
+exec python "${EXPDIR}/src/training/bert/bert_bpe_8k_regular_dataset_train.py"
+
+echo "Training completed successfully. Artifacts are saved in /out/${EXP_NAME}/.."

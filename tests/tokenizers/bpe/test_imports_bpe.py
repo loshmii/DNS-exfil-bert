@@ -7,11 +7,12 @@ from data_pipeline.dns_tokenizers.bpe_dns.v0_1.config.BpeTokConfig import (
     BpeTokConfig,
 )
 
+BASE = Path(__file__).parent.parent.parent.parent.resolve()
+
 
 def test_bpe_tokenizer_initialization():
     with tempfile.TemporaryDirectory() as tmpdir:
-        BASE = Path.cwd()
-        cfg_path = BASE / "experiments" / "toy_cfgs" / "bpe_tok_toy.yaml"
+        cfg_path = BASE / "configs" / "bpe_tok_toy.yaml"
         cfg = BpeTokConfig(cfg_path)
 
         files = [

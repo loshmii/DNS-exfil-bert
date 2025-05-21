@@ -4,6 +4,10 @@ from typing import Literal, Optional
 import hydra
 from hydra.core.hydra_config import HydraConfig
 from pathlib import Path
+from omegaconf import DictConfig, OmegaConf
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
+    BpeTokenizer,
+)
 
 
 class MaskSampler:
@@ -113,24 +117,15 @@ class MaskSampler:
         return mask
 
 
-if __name__ == "__main__":
-    with hydra.initialize_config_dir(
-        config_dir=str(Path.cwd() / "configs"),
-        job_name="masker_test",
-        version_base="1.3",
-    ):
-        cfg = hydra.compose(
-            config_name="config",
-            overrides=[
-                "tokenizer=bpe8k_pretrained",
-                "model=bert_uncased",
-                "dataset=dataset_for_mlm",
-            ],
-            return_hydra_config=True,
-        )
-        HydraConfig().set_config(cfg)
-
-    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
+@hydra.main(
+    config_path=str(Path(__file__).parent.parent.parent / "configs"),
+    config_name="config",
+    version_base="1.3",
+)
+def main(cfg: DictConfig):
+    tokenizer = BpeTokenizer.from_pretrained(
+        **OmegaConf.to_container(cfg.tokenizer, resolve=True),
+    )
     encoding = tokenizer(
         text=["a.com", "b.net", "c.org", "idegascina.edufuau"],
         return_attention_mask=True,
@@ -140,13 +135,22 @@ if __name__ == "__main__":
         return_tensors="pt",
     )
     masker = MaskSampler(
-        mlm_probability=0.15,
-        strategy="token",
-        span_lambda=1.0,
-        seed=42,
+        **OmegaConf.to_container(
+            cfg.training_arguments.mask_args, resolve=True
+        )
     )
-    input_ids = encoding["input_ids"]
-    attention_mask = encoding["attention_mask"]
-    special_tokens_mask = encoding["special_tokens_mask"]
-    mask = masker(input_ids, attention_mask, special_tokens_mask)
-    print(mask)
+
+    mask = masker(
+        input_ids=encoding["input_ids"],
+        attention_mask=encoding["attention_mask"],
+        special_tokens_mask=encoding["special_tokens_mask"],
+    )
+    print("Input IDs:\n", encoding["input_ids"])
+    print("Attention Mask:\n", encoding["attention_mask"])
+    print("Special Tokens Mask:\n", encoding["special_tokens_mask"])
+    print("Mask:\n", mask)
+    print("All done!")
+
+
+if __name__ == "__main__":
+    main()

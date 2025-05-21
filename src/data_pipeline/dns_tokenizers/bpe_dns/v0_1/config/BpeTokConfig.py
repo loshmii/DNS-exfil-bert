@@ -5,7 +5,7 @@ from pathlib import Path
 from jsonschema import validate as js_validate, ValidationError
 from omegaconf import DictConfig, OmegaConf
 
-DIR = Path.cwd()
+DIR = Path(__file__).parent.parent.parent.parent.parent.parent.parent
 SCHEMA_PATH = DIR / "configs" / "bpe_tok_schema.json"
 _schema = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
 
@@ -107,7 +107,7 @@ def get_config_for_bpe_tok(config_src: Union[str, Path, Dict[str, Any]]):
 
 
 if __name__ == "__main__":
-    BASE_PATH = Path.cwd()
+    BASE_PATH = DIR
     config_from_file_str = BpeTokConfig(
         str(BASE_PATH / "configs" / "tokenizer" / "bpe8k_for_training.yaml")
     )

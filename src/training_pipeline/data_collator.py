@@ -4,6 +4,15 @@ import torch
 from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
 from training_pipeline.masker import MaskSampler
 from omegaconf import OmegaConf
+from training_pipeline.builders import MLMDatasetBuilder
+from pathlib import Path
+import hydra
+from omegaconf import DictConfig, OmegaConf
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
+    BpeTokenizer,
+)
+
+ROOT = Path(__file__).parent.parent.parent
 
 
 @dataclass
@@ -72,66 +81,40 @@ class DnsDataCollatorForMLM:
         return batch
 
 
-if __name__ == "__main__":
-    from datasets import load_dataset
-    import hydra
-    from hydra.core.hydra_config import HydraConfig
-    from pathlib import Path
+@hydra.main(
+    config_path=str(ROOT / "configs"),
+    config_name="config",
+    version_base="1.3",
+)
+def main(cfg: DictConfig):
+    tokenizer = BpeTokenizer.from_pretrained(
+        **OmegaConf.to_container(cfg.tokenizer, resolve=True),
+    )
 
-    with hydra.initialize_config_dir(
-        config_dir=str(Path.cwd() / "configs"),
-        job_name="dns_data_collator",
-        version_base="1.3",
-    ):
-        cfg = hydra.compose(
-            config_name="config",
-            overrides=[
-                "tokenizer=bpe8k_pretrained",
-                "model=bert_uncased",
-                "dataset=dataset_for_mlm",
-            ],
-            return_hydra_config=True,
-        )
-        HydraConfig().set_config(cfg)
-
-    tokenizer = hydra.utils.instantiate(cfg.tokenizer)
     mask_sampler = MaskSampler(
-        mlm_probability=0.15,
-        strategy="token",
-    )
-
-    data_files = OmegaConf.to_container(cfg.dataset.files, resolve=True)
-
-    ds = load_dataset(
-        path="src/training_pipeline/dataset_builder.py",
-        name="default",
-        data_files=data_files,
-        streaming=False,
-        trust_remote_code=True,
-    )
-
-    def tokenize_fn(examples):
-        return tokenizer(
-            examples["text"],
-            padding=False,
-            truncation=True,
-            return_special_tokens_mask=True,
-            return_attention_mask=True,
+        **OmegaConf.to_container(
+            cfg.training_arguments.mask_args, resolve=True
         )
-
-    ds = ds.map(
-        tokenize_fn,
-        batched=True,
-        remove_columns=["text"],
     )
+
+    builder = MLMDatasetBuilder(
+        tokenizer=tokenizer,
+        **OmegaConf.to_container(cfg.dataset.builder_args, resolve=True),
+    )
+
+    ds = builder.build()
 
     data_collator = DnsDataCollatorForMLM(
         tokenizer=tokenizer,
         mask_sampler=mask_sampler,
-        pad_to_multiple_of=8,
-        mask_token_prob=0.8,
-        random_token_prob=0.1,
+        **OmegaConf.to_container(
+            cfg.training_arguments.collator_args, resolve=True
+        ),
     )
 
     batch = data_collator([ds["train"][i] for i in range(2)])
     print(batch["input_ids"])
+
+
+if __name__ == "__main__":
+    main()

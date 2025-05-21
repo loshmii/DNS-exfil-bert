@@ -6,6 +6,7 @@ from pathlib import Path
 from omegaconf import OmegaConf
 from hydra.core.hydra_config import HydraConfig
 from typing import Optional
+from omegaconf import DictConfig
 
 
 @dataclass
@@ -96,19 +97,24 @@ def parse_dataclasses(cfg):
     return (
         ModelArguments(**OmegaConf.to_container(cfg.model, resolve=True)),
         MLMTrainingArguments(
-            **OmegaConf.to_container(cfg.training_arguments, resolve=True)
+            **OmegaConf.to_container(
+                cfg.training_arguments.trainer_args, resolve=True
+            )
         ),
     )
 
 
+@hydra.main(
+    config_path=str(Path(__file__).parent.parent.parent / "configs"),
+    config_name="config",
+    version_base="1.3",
+)
+def main(cfg: DictConfig):
+
+    model_args, train_args = parse_dataclasses(cfg)
+    print(model_args)
+    print(train_args)
+
+
 if __name__ == "__main__":
-    with hydra.initialize_config_dir(
-        config_dir=str(Path.cwd() / "configs"),
-        job_name="training_args_test",
-        version_base="1.3",
-    ):
-        cfg = hydra.compose(config_name="config", return_hydra_config=True)
-        HydraConfig().set_config(cfg)
-        model_args, train_args = parse_dataclasses(cfg)
-        print(model_args)
-        print(train_args)
+    main()

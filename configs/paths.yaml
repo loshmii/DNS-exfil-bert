@@ -1,0 +1,5 @@
+paths:
+  root: ${oc.env:EXPDIR}
+  data: /data/${oc.env:DATASET}
+  out: /out/${oc.env:EXP_NAME}
+  tensorboard: /out/logs/tensorboard/${oc.env:EXP_NAME}

@@ -263,116 +263,102 @@ def raw_to_normalized_csv(
 
 
 def remove_duplicates(
-    split_txt: Union[str, Path],
-    split_lbl: Union[str, Path],
-    tmp_dir: Union[str, Path] = None,
-) -> Tuple[Path, Path]:
-    tmp_dir = Path(tmp_dir) if tmp_dir else Path(split_txt).parent
-    db_path = tmp_dir / f"{split_txt.stem}.db"
-    uniq_txt = tmp_dir / f"{split_txt.stem}.uniq.txt"
-    uniq_lbl = tmp_dir / f"{split_lbl.stem}.uniq.labels"
+    split_csv: Union[str, Path],
+    out_dir: Union[str, Path] = None,
+    batch_size: int = 50000,
+) -> Path:
+    split_csv = Path(split_csv)
+    out_dir = Path(out_dir) if out_dir else split_csv
+    out_dir.mkdir(parents=True, exist_ok=True)
+    db_path = out_dir / f"{split_csv.stem}.db"
+    uniq_csv = out_dir / f"{split_csv.stem}.csv"
 
-    cnt_rows = sum(1 for _ in split_txt.open("r", encoding="utf-8")) - 1
+    with split_csv.open("r", encoding="utf-8", newline="") as f:
+        total = sum(1 for _ in f) - 1
 
     conn = sqlite3.connect(db_path)
-
     try:
-        c = conn.cursor()
-        c.execute("PRAGMA journal_mode=OFF;")
-        c.execute("PRAGMA synchronous=OFF;")
+        cur = conn.cursor()
+        cur.execute("PRAGMA journal_mode=OFF;")
+        cur.execute("PRAGMA synchronous=OFF;")
         conn.commit()
 
-        c.execute(
+        cur.execute(
             """
             CREATE TABLE IF NOT EXISTS domains (
-                domain TEXT PRIMARY KEY,
-                label INTEGER
-            );
+                text TEXT PRIMARY KEY,
+                label TEXT NOT NULL
+                );
         """
         )
         conn.commit()
 
         batch = []
-        batch_size = 50000
-        with split_txt.open("r", encoding="utf-8") as tf, split_lbl.open(
-            "r", encoding="utf-8"
-        ) as lf:
-
-            iterator = zip(tf, lf)
-            iterator = tqdm(
-                iterator,
-                total=cnt_rows,
-                desc="Inserting rows",
+        with split_csv.open("r", encoding="utf-8", newline="") as rf:
+            reader = csv.reader(rf)
+            header = next(reader)
+            for row in tqdm(
+                reader,
+                total=total,
+                desc="Inserting into DB",
                 unit="rows",
-                dynamic_ncols=True,
-            )
-
-            for dom, lbl in iterator:
-                dom = dom.rstrip("\n")
-                lbl = int(lbl.rstrip("\n"))
+                colour="green",
+            ):
+                dom, lbl = row[0].strip(), row[1].strip()
                 batch.append((dom, lbl))
-
                 if len(batch) >= batch_size:
-                    c.executemany(
-                        "INSERT OR IGNORE INTO domains (domain, label) VALUES (?, ?);",
+                    cur.executemany(
+                        "INSERT OR IGNORE INTO domains (text, label) VALUES (?, ?);",
                         batch,
                     )
                     conn.commit()
                     batch.clear()
-
             if batch:
-                c.executemany(
-                    "INSERT OR IGNORE INTO domains (domain, label) VALUES (?, ?);",
+                cur.executemany(
+                    "INSERT OR IGNORE INTO domains (text, label) VALUES (?, ?);",
                     batch,
                 )
                 conn.commit()
-
-        with uniq_txt.open("w", encoding="utf-8") as tf, uniq_lbl.open(
-            "w", encoding="utf-8"
-        ) as lf:
-
-            rows = c.execute(
-                "SELECT domain, label FROM domains ORDER BY rowid;"
-            )
-            for dom, lbl in tqdm(
-                rows,
-                desc="Exporting rows",
+        with uniq_csv.open("w", encoding="utf-8", newline="") as wf:
+            writer = csv.writer(wf)
+            writer.writerow(header)
+            for txt, lbl in tqdm(
+                cur.execute("SELECT text, label FROM domains ORDER BY rowid;"),
+                desc="Exporting to CSV",
                 unit="rows",
-                dynamic_ncols=True,
+                colour="green",
             ):
-                tf.write(f"{dom}\n")
-                lf.write(f"{lbl}\n")
+                writer.writerow([txt, lbl])
     finally:
         conn.close()
-
         try:
             db_path.unlink()
         except FileNotFoundError:
             pass
-    return uniq_txt, uniq_lbl
+
+    return uniq_csv
+
+
+# TODO: Change the logic of the file so the inner functions work on files and not on the whole directory then have outer logic to call the inner functions
 
 
 if __name__ == "__main__":
-    DIR = Path.cwd()
-    print(DIR)
+    DIR = Path(__file__).parent.parent.parent.resolve()
+
     raw_base = DIR / "data" / "raw"
-    out_base_csv = DIR / "data" / "raw" / "normalized"
+    out_base_csv = DIR / "data" / "processed" / "original"
     raw_to_normalized_csv(
         raw_base,
         out_base_csv,
     )
-    """out_base = DIR / "data" / "processed"
-    raw_to_normalized(
-        raw_base,
-        out_base,
-    )
+    out_base = DIR / "data" / "processed" / "deduped"
 
     splits = ("train", "val", "test")
     for split in splits:
-        txt_path = out_base / f"{split}.txt"
-        lbl_path = out_base / f"{split}.labels"
-        uniq_txt, uniq_lbl = remove_duplicates(txt_path, lbl_path)
-        uniq_txt.replace(txt_path)
-        uniq_lbl.replace(lbl_path)
+        inp_file = out_base_csv / f"{split}.csv"
+        remove_duplicates(
+            inp_file,
+            out_dir=out_base,
+        )
         print(f"Removed duplicates from {split} split.")
     print("All done.")"""

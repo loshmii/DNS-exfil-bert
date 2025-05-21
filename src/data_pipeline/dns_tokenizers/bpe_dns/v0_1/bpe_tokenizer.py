@@ -15,6 +15,8 @@ from data_pipeline.dns_tokenizers.bpe_dns.v0_1.config.BpeTokConfig import (
 from pathlib import Path
 from typing import Union
 
+DIR = Path(__file__).parent.parent.parent.parent.parent.parent
+
 
 class BpeTokenizer(PreTrainedTokenizerFast):
     def __init__(
@@ -124,15 +126,17 @@ class BpeTokenizer(PreTrainedTokenizerFast):
     def from_pretrained(
         cls,
         path: Union[str, Path],
+        **kwargs,
     ) -> "BpeTokenizer":
         path = Path(path).resolve()
-        core = PreTrainedTokenizerFast.from_pretrained(path).backend_tokenizer
+        core = PreTrainedTokenizerFast.from_pretrained(
+            path, **kwargs
+        ).backend_tokenizer
         cfg = BpeTokConfig.from_file(path / "config.yaml")
         return cls(cfg, core)
 
 
 if __name__ == "__main__":
-    DIR = Path.cwd()
 
     cfg = BpeTokConfig(DIR / "experiments" / "toy_cfgs" / "bpe_tok_toy.yaml")
     print(cfg.alphabet)
@@ -146,7 +150,8 @@ if __name__ == "__main__":
     )
 
     loaded_tok = BpeTokenizer.from_pretrained(
-        DIR / "experiments" / "toy_artifacts" / "params"
+        DIR / "experiments" / "toy_artifacts" / "params",
+        local_files_only=True,
     )
     sample = "xn--example.com"
     assert tok(sample) == loaded_tok(sample)
