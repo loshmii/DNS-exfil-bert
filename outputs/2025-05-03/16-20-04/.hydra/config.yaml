@@ -1,6 +1,0 @@
-tokenizer:
-  vocab_size: 8192
-  alphabet: 'abcdefghijklmnopqrstuvwxyz''ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&()*+,-./:;<=>?@[\]^_`{|}~ '
-files:
-- data/processed/train.txt
-- data/processed/val.txt

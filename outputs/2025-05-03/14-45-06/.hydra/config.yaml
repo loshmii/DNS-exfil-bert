@@ -1,3 +1,0 @@
-tokenizer:
-  vocab_size: 8192
-  alphabet: 'abcdefghijklmnopqrstuvwxyz''ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&()*+,-./:;<=>?@[\]^_`{|}~ '
