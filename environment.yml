@@ -23,6 +23,8 @@ dependencies:
       - torchaudio
       - transformers>=4.35.0
       - accelerate>=0.26.0
+      - tensorflow
+      - tf-keras
       - tensorboard
       - hypothesis
       - pytest

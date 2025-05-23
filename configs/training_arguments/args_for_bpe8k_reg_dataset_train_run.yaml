@@ -1,5 +1,5 @@
 trainer_args:
-  output_dir: ${paths.out}/bpe8k_reg_dataset_12l_base
+  output_dir: ${paths.output_dir}
   overwrite_output_dir: true
 
   per_device_train_batch_size: 64
@@ -23,7 +23,7 @@ trainer_args:
   logging_strategy: steps
   logging_steps: 50
   report_to: tensorboard
-  logging_dir: ${paths.tensorboard}/bpe8k_reg_dataset_12l_base
+  logging_dir: ${paths.tensorboard}
 
   eval_strategy: steps
   eval_steps: 500

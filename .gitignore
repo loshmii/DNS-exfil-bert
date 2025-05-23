@@ -10,7 +10,7 @@ __pycache__/
 !tests/data/**/
 
 experiments/**
-!experiments/** *.py
+!experiments/*.py
 notebooks/
 outputs/
 

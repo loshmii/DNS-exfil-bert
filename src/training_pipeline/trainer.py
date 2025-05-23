@@ -1,3 +1,4 @@
+import functools
 import transformers
 import torch
 from transformers import (
@@ -9,9 +10,10 @@ from transformers import (
     TrainerState,
 )
 import hydra
-from pathlib import Path
-from datasets import load_dataset
 from hydra.core.hydra_config import HydraConfig
+from hydra.types import RunMode
+from torch.utils.tensorboard import SummaryWriter
+from pathlib import Path
 from training_pipeline.arguments import parse_dataclasses
 import logging
 from training_pipeline.masker import MaskSampler
@@ -23,14 +25,87 @@ from omegaconf import DictConfig, OmegaConf
 from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
     BpeTokenizer,
 )
-from training_pipeline.metrics import StreamingMetricsCallback
 import torchmetrics
 import time
+from typing import Dict, Sequence, Any
 
 
 def argmax_logits(logits, labels):
     return logits.argmax(dim=-1)
 
+def _flatten_dict(
+    d: Dict[str, Any],
+    parent_key: str = "",
+    sep: str = "."
+) -> Dict[str, Any]:
+    items: Dict[str, Any] = {}
+    for k,v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, dict):
+            items.update(_flatten_dict(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
+
+class HPParamstersCallback(TrainerCallback):
+    def __init__(
+        self,
+        cfg: DictConfig,
+        metrics: Sequence[str],
+    ):
+        self.cfg = cfg
+        self.metric_keys = metrics
+        self.log_dir = str(Path(cfg.paths.tensorboard).expanduser().resolve())
+
+    def on_train_begin(
+        self,
+        args,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
+        self.writer = SummaryWriter(
+            log_dir=self.log_dir
+        )
+
+    def on_evaluate(
+        self,
+        args,
+        state: TrainerState,
+        control: TrainerControl,
+        metrics=None,
+        **kwargs,
+    ):
+        super().on_evaluate(
+            args, state, control, **kwargs
+        )
+        nested = OmegaConf.to_object(self.cfg)
+        flat_cfg = _flatten_dict(nested)
+
+        raw_overrides = HydraConfig.get().overrides.task
+        override_keys = {ov.split("=",1)[0] for ov in raw_overrides}
+
+        hparams = { k: flat_cfg[k] for k in override_keys if k in flat_cfg }
+        logging_metrics = dict()
+        if metrics is not None:
+            for key in self.metric_keys:
+                if key in metrics:
+                    logging_metrics[key] = metrics[key]
+
+        if logging_metrics:
+            self.writer.add_hparams(hparams, logging_metrics)
+            self.writer.close()
+            
+            score_path = Path(self.cfg.paths.score).expanduser().resolve()
+            score_path.parent.mkdir(parents=True, exist_ok=True)
+            score_path.touch(exist_ok=True)
+            with open(score_path, "w") as f:
+                if "test_masked_accuracy" in logging_metrics:
+                    f.write("%g" % logging_metrics["test_masked_accuracy"])
+                elif "eval_masked_accuracy" in logging_metrics:
+                    f.write("%g" % logging_metrics["eval_masked_accuracy"])
+                elif "masked_accuracy" in metrics:
+                    f.write("%g" % metrics["masked_accuracy"])
 
 class PerplexityCallback(TrainerCallback):
     def on_log(
@@ -230,11 +305,49 @@ class MLMTrainer(Trainer):
         return self.lr_scheduler
 
 
+def add_parent_resolver(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        hc = HydraConfig.get()
+        is_multirun = hc.mode == RunMode.MULTIRUN
+
+        def parent(path:str, n:int = 0) -> str:
+            path = Path(path)
+            idx = n-1 if not is_multirun else n
+            return str(path.parents[idx] if idx < len(path.parents) else path) if idx >= 0 else str(path)
+        OmegaConf.register_new_resolver(
+            "parent",
+            parent,
+            replace=True,
+        )
+        return fn(*args, **kwargs)
+    return wrapper
+
+def add_num_resolver(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        def num(job_num: str) -> str:
+            hc = HydraConfig.get()
+
+            if hc.mode == RunMode.MULTIRUN:
+                return "/"+str(hc.job.num)
+            else:
+                return ""
+        OmegaConf.register_new_resolver(
+            "num",
+            num,
+            replace=True,
+        )
+        return fn(*args, **kwargs)
+    return wrapper
+
 @hydra.main(
     config_path=str(Path(__file__).parent.parent.parent / "configs"),
     config_name="config",
     version_base="1.3",
 )
+@add_parent_resolver
+@add_num_resolver
 def main(cfg: DictConfig):
 
     model_args, train_args = parse_dataclasses(cfg)
@@ -308,7 +421,7 @@ def main(cfg: DictConfig):
 
     trainer.train()
 
-    trainer.evaluate(
+    loss = trainer.evaluate(
         eval_dataset=eval_ds,
         metric_key_prefix="test",
     )
