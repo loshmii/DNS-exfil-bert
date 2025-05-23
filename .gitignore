@@ -18,3 +18,5 @@ artifacts/models/**
 
 .fmleignore
 *.sh
+
+*.lock

@@ -33,19 +33,19 @@ from typing import Dict, Sequence, Any
 def argmax_logits(logits, labels):
     return logits.argmax(dim=-1)
 
+
 def _flatten_dict(
-    d: Dict[str, Any],
-    parent_key: str = "",
-    sep: str = "."
+    d: Dict[str, Any], parent_key: str = "", sep: str = "."
 ) -> Dict[str, Any]:
     items: Dict[str, Any] = {}
-    for k,v in d.items():
+    for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
         if isinstance(v, dict):
             items.update(_flatten_dict(v, new_key, sep=sep))
         else:
             items[new_key] = v
     return items
+
 
 class HPParamstersCallback(TrainerCallback):
     def __init__(
@@ -64,9 +64,7 @@ class HPParamstersCallback(TrainerCallback):
         control: TrainerControl,
         **kwargs,
     ):
-        self.writer = SummaryWriter(
-            log_dir=self.log_dir
-        )
+        self.writer = SummaryWriter(log_dir=self.log_dir)
 
     def on_evaluate(
         self,
@@ -76,16 +74,14 @@ class HPParamstersCallback(TrainerCallback):
         metrics=None,
         **kwargs,
     ):
-        super().on_evaluate(
-            args, state, control, **kwargs
-        )
+        super().on_evaluate(args, state, control, **kwargs)
         nested = OmegaConf.to_object(self.cfg)
         flat_cfg = _flatten_dict(nested)
 
         raw_overrides = HydraConfig.get().overrides.task
-        override_keys = {ov.split("=",1)[0] for ov in raw_overrides}
+        override_keys = {ov.split("=", 1)[0] for ov in raw_overrides}
 
-        hparams = { k: flat_cfg[k] for k in override_keys if k in flat_cfg }
+        hparams = {k: flat_cfg[k] for k in override_keys if k in flat_cfg}
         logging_metrics = dict()
         if metrics is not None:
             for key in self.metric_keys:
@@ -95,7 +91,7 @@ class HPParamstersCallback(TrainerCallback):
         if logging_metrics:
             self.writer.add_hparams(hparams, logging_metrics)
             self.writer.close()
-            
+
             score_path = Path(self.cfg.paths.score).expanduser().resolve()
             score_path.parent.mkdir(parents=True, exist_ok=True)
             score_path.touch(exist_ok=True)
@@ -106,6 +102,7 @@ class HPParamstersCallback(TrainerCallback):
                     f.write("%g" % logging_metrics["eval_masked_accuracy"])
                 elif "masked_accuracy" in metrics:
                     f.write("%g" % metrics["masked_accuracy"])
+
 
 class PerplexityCallback(TrainerCallback):
     def on_log(
@@ -311,17 +308,24 @@ def add_parent_resolver(fn):
         hc = HydraConfig.get()
         is_multirun = hc.mode == RunMode.MULTIRUN
 
-        def parent(path:str, n:int = 0) -> str:
+        def parent(path: str, n: int = 0) -> str:
             path = Path(path)
-            idx = n-1 if not is_multirun else n
-            return str(path.parents[idx] if idx < len(path.parents) else path) if idx >= 0 else str(path)
+            idx = n - 1 if not is_multirun else n
+            return (
+                str(path.parents[idx] if idx < len(path.parents) else path)
+                if idx >= 0
+                else str(path)
+            )
+
         OmegaConf.register_new_resolver(
             "parent",
             parent,
             replace=True,
         )
         return fn(*args, **kwargs)
+
     return wrapper
+
 
 def add_num_resolver(fn):
     @functools.wraps(fn)
@@ -330,16 +334,19 @@ def add_num_resolver(fn):
             hc = HydraConfig.get()
 
             if hc.mode == RunMode.MULTIRUN:
-                return "/"+str(hc.job.num)
+                return "/" + str(hc.job.num)
             else:
                 return ""
+
         OmegaConf.register_new_resolver(
             "num",
             num,
             replace=True,
         )
         return fn(*args, **kwargs)
+
     return wrapper
+
 
 @hydra.main(
     config_path=str(Path(__file__).parent.parent.parent / "configs"),
