@@ -16,12 +16,13 @@ src/dns_exfil_mbert.egg-info/PKG-INFO
 src/dns_exfil_mbert.egg-info/SOURCES.txt
 src/dns_exfil_mbert.egg-info/dependency_links.txt
 src/dns_exfil_mbert.egg-info/top_level.txt
-src/fine_tuning/labeled_dataset.py
+src/fine_tuning/bpe8k_reg_bert_reg_dataset_cls_train.py
 src/training/bert/bert_bpe_8k_regular_dataset_train.py
 src/training/bpe_tokenizer/bpe_tok_training.py
 src/training_pipeline/__init__.py
 src/training_pipeline/arguments.py
 src/training_pipeline/builders.py
+src/training_pipeline/cls_trainer.py
 src/training_pipeline/data_collator.py
 src/training_pipeline/masker.py
 src/training_pipeline/metrics.py
