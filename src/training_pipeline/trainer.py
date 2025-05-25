@@ -388,7 +388,7 @@ def main(cfg: DictConfig):
 
     builder = MLMDatasetBuilder(
         tokenizer=tokenizer,
-        **OmegaConf.to_container(cfg.dataset.builder_args, resolve=True),
+        **OmegaConf.to_container(cfg.dataset.MLM_builder_args, resolve=True),
     )
     ds = builder.build()
 
@@ -406,7 +406,7 @@ def main(cfg: DictConfig):
         tokenizer=tokenizer,
         mask_sampler=mask_sampler,
         **OmegaConf.to_container(
-            cfg.training_arguments.collator_args, resolve=True
+            cfg.training_arguments.MLM_collator_args, resolve=True
         ),
     )
 

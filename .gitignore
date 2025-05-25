@@ -3,6 +3,7 @@ __pycache__/
 .hydra/
 .hypothesis/**
 .pytest_cache/
+/artifacts/**
 
 /data/
 

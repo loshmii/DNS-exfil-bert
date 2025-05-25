@@ -7,6 +7,7 @@ hydra:
 paths:
   root: ${oc.env:EXPDIR}
   data: /data/${oc.env:DATASET}
+  artifacts: ${paths.root}/artifacts
   out: ${parent:${hydra:runtime.output_dir}}
   output_dir: ${paths.out}${num:${hydra:job.num}}
   tensorboard: ${paths.out}/log/tensorboard${num:${hydra:job.num}}

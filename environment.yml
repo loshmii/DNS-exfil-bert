@@ -19,6 +19,8 @@ dependencies:
   - pip:
       - torch>=2.1.0
       - torchmetrics
+      - matplotlib
+      - scikit-learn
       - torchvision
       - torchaudio
       - transformers>=4.35.0

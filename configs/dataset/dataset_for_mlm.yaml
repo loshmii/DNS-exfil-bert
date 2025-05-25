@@ -6,7 +6,18 @@ files:
   test:
     - ${paths.data}/deduped/test.csv
 
-builder_args:
+MLM_builder_args:
+  raw_files: ${dataset.files}
+  streaming: false
+  max_length: 256
+  proportion: 
+    train: 0.8
+    validation: 0.1
+    test: 0.1
+  cache_dir: ${paths.root}/experiments/cache
+  force_rebuild: false
+
+CLS_builder_args:
   raw_files: ${dataset.files}
   streaming: false
   max_length: 256

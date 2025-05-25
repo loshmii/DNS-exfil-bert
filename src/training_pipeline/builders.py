@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Tuple
@@ -23,9 +24,12 @@ import shutil
 import json
 import hashlib
 import os
+import torch
+from sklearn.utils.class_weight import compute_class_weight
+import numpy as np
 
 
-@dataclass
+@dataclass #TODO: unify loading for MLM and CLS no need to reject MLM in CLS case
 class DnsDatasetBuilder(ABC):
     raw_files: Dict[str, List[str]]
     tokenizer: PreTrainedTokenizerFast
@@ -299,7 +303,22 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
         return ds
 
     def _postprocess(self, ds):
-        return ds
+        return ds.remove_columns(["special_tokens_mask"])
+    
+    def get_class_weights(self, ds: Optional[DatasetDict] = None) -> torch.Tensor:
+        if ds is None:
+            ds = self.build()
+        
+        labels = np.array(ds["train"]["label"])
+
+        classes = np.unique(labels)
+        weights = compute_class_weight(
+            class_weight="balanced",
+            classes=classes,
+            y=labels,
+        )
+        weights_tensor = torch.tensor(weights, dtype=torch.float)
+        return weights_tensor
 
 
 @hydra.main(
@@ -315,7 +334,7 @@ def main(cfg: DictConfig):
 
     mlm_builder = MLMDatasetBuilder(
         tokenizer=tokenizer,
-        **OmegaConf.to_container(cfg.dataset.builder_args, resolve=True),
+        **OmegaConf.to_container(cfg.dataset.MLM_builder_args, resolve=True),
     )
 
     ds = mlm_builder.build()
@@ -323,10 +342,10 @@ def main(cfg: DictConfig):
 
     cls_builder = CLSDatasetBuilder(
         tokenizer=tokenizer,
-        **OmegaConf.to_container(cfg.dataset.builder_args, resolve=True),
+        **OmegaConf.to_container(cfg.dataset.CLS_builder_args, resolve=True),
     )
     ds = cls_builder.build()
-    print(ds["train"].shape[0], ds["validation"].shape[0], ds["test"].shape[0])
+    print(ds["train"][0])
 
 
 if __name__ == "__main__":

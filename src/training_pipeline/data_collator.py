@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import torch
 from transformers.tokenization_utils_fast import PreTrainedTokenizerFast
 from training_pipeline.masker import MaskSampler
 from omegaconf import OmegaConf
-from training_pipeline.builders import MLMDatasetBuilder
+from training_pipeline.builders import MLMDatasetBuilder, CLSDatasetBuilder
 from pathlib import Path
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -99,6 +99,52 @@ class DnsDataCollatorForMLM:
         batch["attention_mask"] = attention_mask
         batch.pop("special_tokens_mask", None)
         return batch
+    
+@dataclass
+class DnsDataCollatorForCLC:
+    tokenizer: PreTrainedTokenizerFast
+    pad_to_multiple_of: Optional[int] = 8
+    label_key: str = "labels"
+    convert_to_one_hot: bool = False
+    num_labels: Optional[int] = None
+    dtype: torch.dtype = torch.long
+
+    def __post_init__(self):
+        if not isinstance(self.tokenizer, PreTrainedTokenizerFast):
+            raise ValueError(
+                "tokenizer must be a PreTrainedTokenizerFast instance"
+            )
+        if self.convert_to_one_hot:
+            if self.num_labels is None or self.num_labels <= 0:
+                raise ValueError(
+                    "num_labels must be a positive integer when convert_to_one_hot is True"
+                )
+                
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+        labels_list = [f.pop(self.label_key) for f in features]
+        
+        batch = self.tokenizer.pad(
+            features,
+            return_tensors="pt",
+            pad_to_multiple_of=self.pad_to_multiple_of,
+        )
+
+        if self.convert_to_one_hot:
+            label_tensor = torch.zeros(
+                len(labels_list), self.num_labels, dtype=self.dtype
+            )
+            label_tensor[
+                torch.arange(len(labels_list)), torch.tensor(labels_list)
+            ] = torch.tensor(
+                1, dtype=self.dtype
+            )
+        else:
+            label_tensor = torch.tensor(
+                labels_list, dtype=self.dtype
+            )
+
+        batch["labels"] = label_tensor
+        return batch
 
 
 @hydra.main(
@@ -111,7 +157,7 @@ def main(cfg: DictConfig):
         **OmegaConf.to_container(cfg.tokenizer, resolve=True),
     )
 
-    mask_sampler = MaskSampler(
+    """mask_sampler = MaskSampler(
         **OmegaConf.to_container(
             cfg.training_arguments.mask_args, resolve=True
         )
@@ -119,7 +165,7 @@ def main(cfg: DictConfig):
 
     builder = MLMDatasetBuilder(
         tokenizer=tokenizer,
-        **OmegaConf.to_container(cfg.dataset.builder_args, resolve=True),
+        **OmegaConf.to_container(cfg.dataset.MLM_builder_args, resolve=True),
     )
 
     ds = builder.build()
@@ -128,12 +174,26 @@ def main(cfg: DictConfig):
         tokenizer=tokenizer,
         mask_sampler=mask_sampler,
         **OmegaConf.to_container(
-            cfg.training_arguments.collator_args, resolve=True
+            cfg.training_arguments.MLM_collator_args, resolve=True
+        ),
+    )"""
+
+    cls_builder = CLSDatasetBuilder(
+        tokenizer=tokenizer,
+        **OmegaConf.to_container(cfg.dataset.CLS_builder_args, resolve=True),
+    )
+
+    cls_ds = cls_builder.build()
+
+    cls_data_collator = DnsDataCollatorForCLC(
+        tokenizer=tokenizer,
+        **OmegaConf.to_container(
+            cfg.training_arguments.CLS_collator_args, resolve=True
         ),
     )
 
-    batch = data_collator([ds["train"][i] for i in range(2)])
-    print(batch["input_ids"])
+    cls_batch = cls_data_collator([cls_ds["train"][i] for i in range(2)])
+    print(cls_batch["labels"])
 
 
 if __name__ == "__main__":

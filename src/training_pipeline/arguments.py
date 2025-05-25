@@ -79,17 +79,30 @@ class ModelArguments:
         default="google-bert/bert-base-uncased",
         metadata={"help": "Path to the model config file."},
     )
-    tokenizer_name: Optional[str] = field(
-        default=None, metadata={"help": "Path to the tokenizer config file."}
+    num_labels: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "Number of labels for the classification task."
+        }
     )
-    pretrainer_model_path: Optional[str] = field(
+    local_files_only: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": "Whether to only use local files. If True, will not download from the internet."
+        },
+    )
+    pretrained_model_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "Path to the pre-trained model."}
     )
 
     def __post_init__(self):
-        if not self.config_name and not self.pretrainer_model_path:
+        if not self.config_name and not self.pretrained_model_name_or_path:
             raise ValueError(
-                "Specify either `config_name` or `pretrainer_model_path`."
+                "Specify either `config_name` or `pretrained_model_name_or_path`."
+            )
+        if self.num_labels is not None and self.num_labels <= 0:
+            raise ValueError(
+                f"num_labels must be greater than 0, got {self.num_labels}."
             )
 
 

@@ -12,7 +12,7 @@ trainer_args:
   weight_decay: 0.01
 
   lr_scheduler_type: linear
-  warmup_steps: 10000
+  warmup_ratio: 0.1
 
   num_train_epochs: 3
   max_steps: -1
@@ -40,8 +40,13 @@ mask_args:
   strategy: token
   span_lambda: 3.0
   seed: 42
-collator_args:
+MLM_collator_args:
   pad_to_multiple_of: 8
   mask_token_prob: 0.8
   random_token_prob: 0.1
+CLS_collator_args:
+  pad_to_multiple_of: 8
+  label_key: label
+  convert_to_one_hot: false
+  num_labels: 2
 
