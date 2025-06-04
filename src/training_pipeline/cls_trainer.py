@@ -12,7 +12,6 @@ from transformers import (
 import hydra
 from hydra.core.hydra_config import HydraConfig
 from hydra.types import RunMode
-from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 from training_pipeline.arguments import parse_dataclasses
 import logging
@@ -38,16 +37,16 @@ from sklearn.metrics import roc_curve, average_precision_score
 from matplotlib import pyplot as plt
 from scipy.special import softmax, expit
 import numpy as np
+from torch.utils.data import DataLoader, WeightedRandomSampler
+
+
+def argmax_logits(logits, labels):
+    return logits.argmax(dim=-1)
+
 
 class ROCCurveCallback(TrainerCallback):
-    def __init__(
-        self,
-        writer: SummaryWriter,
-        eval_dataset,
-        trainer
-    ):
+    def __init__(self, writer: SummaryWriter, trainer):
         self.writer = writer
-        self.eval_dataset = eval_dataset
         self.trainer = trainer
 
     def on_evaluate(
@@ -58,14 +57,20 @@ class ROCCurveCallback(TrainerCallback):
         metrics=None,
         **kwargs,
     ):
-        pred_output = self.trainer.predict(self.eval_dataset)
-        logits = pred_output.predictions
-        labels = pred_output.label_ids
+        logits, labels = (
+            self.trainer._last_eval_logits,
+            self.trainer._last_eval_labels,
+        )
+        if logits is None or labels is None:
+            logging.warning(
+                "No logits or labels found for ROC curve. Skipping ROC curve plotting."
+            )
+            return control
 
         if logits.ndim == 2 and logits.shape[-1] > 1:
             probs = softmax(logits, axis=-1)[:, 1]
         else:
-            prob = 1 / (1 + np.exp(-logits.reshape(-1)))
+            probs = 1 / (1 + np.exp(-logits.reshape(-1)))
 
         fpr, tpr, _ = roc_curve(labels, probs)
 
@@ -84,6 +89,7 @@ class ROCCurveCallback(TrainerCallback):
         )
         plt.close(fig)
 
+
 class CLSTrainer(Trainer):
     def __init__(
         self,
@@ -98,6 +104,7 @@ class CLSTrainer(Trainer):
         metrics_threshold: float = 0.5,
         **kwargs,
     ):
+        kwargs["preprocess_logits_for_metrics"] = argmax_logits
         super().__init__(*args, **kwargs)
 
         self.num_labels = num_labels
@@ -106,24 +113,73 @@ class CLSTrainer(Trainer):
 
         self.class_weights = (
             torch.tensor(class_weights, device=self.args.device)
-            if class_weights is not None else None
+            if class_weights is not None
+            else None
         )
         self.pos_weight = (
             torch.tensor(pos_weight, device=self.args.device)
-            if pos_weight is not None else None
+            if pos_weight is not None
+            else None
         )
 
-        self.acc = torchmetrics.Accuracy(task = "binary" if num_labels == 2 else "multilabel",
-            num_classes=num_labels).to(self.args.device)
-        self.prec = torchmetrics.Precision(task = "binary" if num_labels == 2 else "multilabel",
-            num_classes=num_labels).to(self.args.device)
-        self.rec = torchmetrics.Recall(task = "binary" if num_labels == 2 else "multilabel",
-            num_classes=num_labels).to(self.args.device)
-        self.f1 = torchmetrics.F1Score(task = "binary" if num_labels == 2 else "multilabel",
-            num_classes=num_labels).to(self.args.device)
-        self.auroc = torchmetrics.AUROC(task = "binary" if num_labels == 2 else "multilabel",
-            num_classes=num_labels).to(self.args.device)
-        
+        self.acc = torchmetrics.Accuracy(
+            task="binary" if num_labels == 2 else "multilabel",
+            num_classes=num_labels,
+        ).to(self.args.device)
+        self.prec = torchmetrics.Precision(
+            task="binary" if num_labels == 2 else "multilabel",
+            num_classes=num_labels,
+        ).to(self.args.device)
+        self.rec = torchmetrics.Recall(
+            task="binary" if num_labels == 2 else "multilabel",
+            num_classes=num_labels,
+        ).to(self.args.device)
+        self.f1 = torchmetrics.F1Score(
+            task="binary" if num_labels == 2 else "multilabel",
+            num_classes=num_labels,
+        ).to(self.args.device)
+        self.auroc = torchmetrics.AUROC(
+            task="binary" if num_labels == 2 else "multilabel",
+            num_classes=num_labels,
+            average=None if num_labels > 2 else "macro",
+        ).to(self.args.device)
+
+    def _update_metrics(
+        self,
+        preds,
+        probs,
+        labels,
+    ):
+        self.acc.update(preds, labels)
+        self.prec.update(preds, labels)
+        self.rec.update(preds, labels)
+        self.f1.update(preds, labels)
+        self.auroc.update(probs, labels)
+
+    def get_train_dataloader(self):
+        if "sample_weight" in self.train_dataset.column_names:
+            w = torch.tensor(
+                self.train_dataset["sample_weight"],
+                dtype=torch.double,
+            )
+            base_sampler = WeightedRandomSampler(
+                weights=w,
+                num_samples=len(w),
+                replacement=True,
+            )
+            sampler = base_sampler
+        else:
+            sampler = None
+
+        return DataLoader(
+            self.train_dataset,
+            sampler=sampler,
+            batch_size=self._train_batch_size,
+            collate_fn=self.data_collator,
+            num_workers=self.args.dataloader_num_workers,
+            pin_memory=self.args.dataloader_pin_memory,
+        )
+
     def prediction_step(
         self,
         model,
@@ -138,19 +194,20 @@ class CLSTrainer(Trainer):
             ignore_keys=ignore_keys,
         )
 
-        if not prediction_loss_only and logits is not None and labels is not None:
+        if (
+            not prediction_loss_only
+            and logits is not None
+            and labels is not None
+        ):
             if self.problem_type == "single_label_classification":
-                preds = logits.argmax(dim=-1)
+                probs = logits.softmax(dim=-1)[..., 1]
+                preds = (probs > 0.5).long()
             else:
                 probs = logits.sigmoid()
                 preds = (probs > self.threshold).long()
 
-            self.acc.update(preds, labels)
-            self.prec.update(preds, labels)
-            self.rec.update(preds, labels)
-            self.f1.update(preds, labels)
-            self.auroc.update(preds, labels)
-        
+            self._update_metrics(preds, probs, labels)
+
         return loss, logits, labels
 
     def evaluate(
@@ -158,7 +215,7 @@ class CLSTrainer(Trainer):
         eval_dataset=None,
         ignore_keys=None,
         metric_key_prefix: str = "eval",
-        **gen_kwargs
+        **gen_kwargs,
     ):
         eval_dataset = (
             eval_dataset if eval_dataset is not None else self.eval_dataset
@@ -179,13 +236,17 @@ class CLSTrainer(Trainer):
             logits = output.predictions
             labels = output.label_ids
 
+            self._last_eval_logits, self._last_eval_labels = logits, labels
+
             if logits.ndim == 2 and logits.shape[-1] > 1:
-                probs_pos = softmax(logits, axis=-1)[:, 1]
+                probs_pos = logits.softmax(dim=-1)[:, 1]
             else:
                 probs_pos = expit(logits.ravel())
 
             fpr, tpr, _ = roc_curve(labels, probs_pos)
-            recall01 = float(tpr[fpr <= 0.01].max()) if any (fpr <= 0.01) else 0.0
+            recall01 = (
+                float(tpr[fpr <= 0.01].max()) if any(fpr <= 0.01) else 0.0
+            )
 
             pr_auc = float(average_precision_score(labels, probs_pos))
 
@@ -197,9 +258,7 @@ class CLSTrainer(Trainer):
         total_batch_size = self.args.eval_batch_size * max(
             1, self.args.world_size
         )
-        output.metrics[f"{metric_key_prefix}_runtime"] = (
-            end_time - start_time
-        )
+        output.metrics[f"{metric_key_prefix}_runtime"] = end_time - start_time
         output.metrics[f"{metric_key_prefix}_samples_per_second"] = (
             total_batch_size / output.metrics[f"{metric_key_prefix}_runtime"]
         )
@@ -209,19 +268,30 @@ class CLSTrainer(Trainer):
         )
 
         if not ignore_keys or "accuracy" not in ignore_keys:
-            output.metrics[f"{metric_key_prefix}_accuracy"] = self.acc.compute().item()
+            output.metrics[f"{metric_key_prefix}_accuracy"] = (
+                self.acc.compute().item()
+            )
         if not ignore_keys or "precision" not in ignore_keys:
-            output.metrics[f"{metric_key_prefix}_precision"] = self.prec.compute().item()
+            output.metrics[f"{metric_key_prefix}_precision"] = (
+                self.prec.compute().item()
+            )
         if not ignore_keys or "recall" not in ignore_keys:
-            output.metrics[f"{metric_key_prefix}_recall"] = self.rec.compute().item()
+            output.metrics[f"{metric_key_prefix}_recall"] = (
+                self.rec.compute().item()
+            )
         if not ignore_keys or "f1" not in ignore_keys:
-            output.metrics[f"{metric_key_prefix}_f1"] = self.f1.compute().item()
+            output.metrics[f"{metric_key_prefix}_f1"] = (
+                self.f1.compute().item()
+            )
         if not ignore_keys or "auroc" not in ignore_keys:
-            output.metrics[f"{metric_key_prefix}_auroc"] = self.auroc.compute().item()
+            au = self.auroc.compute()
+            if isinstance(au, torch.Tensor):
+                au = au.mean()
+            output.metrics[f"{metric_key_prefix}_auroc"] = au.item()
 
         for m in (self.acc, self.prec, self.rec, self.f1, self.auroc):
             m.reset()
-        
+
         self.control = self.callback_handler.on_evaluate(
             self.args,
             self.state,
@@ -244,23 +314,19 @@ class CLSTrainer(Trainer):
         logits = outputs.logits
 
         if self.problem_type == "single_label_classification":
-            loss_fn = torch.nn.CrossEntropyLoss(
-                weight=self.class_weights
-            )
+            loss_fn = torch.nn.CrossEntropyLoss(weight=self.class_weights)
             loss = loss_fn(logits.view(-1, self.num_labels), labels.view(-1))
         elif self.problem_type == "multi_label_classification":
             labels = labels.float()
-            loss_fn = torch.nn.BCEWithLogitsLoss(
-                pos_weight=self.pos_weight
-            )
+            loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=self.pos_weight)
             loss = loss_fn(logits, labels)
-        
+
         return (loss, outputs) if return_outputs else loss
-    
+
     def create_optimizer(self):
         if self.optimizer is not None:
             return self.optimizer
-        
+
         if self.args.optimizer_type == "adamw":
             OptimCls = torch.optim.AdamW
             optim_kwargs = {
@@ -291,10 +357,14 @@ class CLSTrainer(Trainer):
 
         self.optimizer = OptimCls(**optim_kwargs)
         return self.optimizer
-    
+
     def create_scheduler(self, num_training_steps, optimizer=None):
         if self.lr_scheduler is None:
-            warmup_steps = self.args.warmup_steps if self.args.warmup_steps else int(self.args.warmup_ratio * num_training_steps)
+            warmup_steps = (
+                self.args.warmup_steps
+                if self.args.warmup_steps
+                else int(self.args.warmup_ratio * num_training_steps)
+            )
             if self.args.lr_scheduler_type == "cosine":
                 self.lr_scheduler = (
                     transformers.optimization.get_cosine_schedule_with_warmup(
@@ -304,10 +374,8 @@ class CLSTrainer(Trainer):
                     )
                 )
             elif self.args.lr_scheduler_type == "infinite":
-                self.lr_scheduler = (
-                    transformers.optimization.get_constant_schedule_with_warmup(
-                        optimizer or self.optimizer,
-                    )
+                self.lr_scheduler = transformers.optimization.get_constant_schedule_with_warmup(
+                    optimizer or self.optimizer,
                 )
             else:
                 self.lr_scheduler = (
@@ -318,7 +386,8 @@ class CLSTrainer(Trainer):
                     )
                 )
         return self.lr_scheduler
-        
+
+
 @hydra.main(
     config_path=str(Path(__file__).parent.parent.parent / "configs"),
     config_name="config",
@@ -336,7 +405,7 @@ def main(cfg: DictConfig):
     root = logging.getLogger()
     for h in list(root.handlers):
         root.removeHandler(h)
-    
+
     root.setLevel(logging.INFO)
     fmt = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
@@ -373,7 +442,9 @@ def main(cfg: DictConfig):
 
     data_collator = DnsDataCollatorForCLC(
         tokenizer=tokenizer,
-        **OmegaConf.to_container(cfg.training_arguments.CLS_collator_args, resolve=True),
+        **OmegaConf.to_container(
+            cfg.training_arguments.CLS_collator_args, resolve=True
+        ),
     )
 
     writer = SummaryWriter(log_dir=str(train_args.logging_dir))
@@ -405,8 +476,6 @@ def main(cfg: DictConfig):
         metric_key_prefix="test",
     )
 
+
 if __name__ == "__main__":
     main()
-
-
-

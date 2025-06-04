@@ -144,7 +144,13 @@ if __name__ == "__main__":
     cfg = get_config_for_char_tok(cfg_path)
     tokenizer = CharTokenizer(cfg)
     encodings = tokenizer(
-        ["helloworld", "a", "XN--example.com", "example.com"],
+        [
+            "helloworld",
+            "a",
+            "XN--example.com",
+            "example.com",
+            "external-media18.public.wamsm-a-3.prod.infra",
+        ],
         padding=True,
         truncation=True,
         return_attention_mask=True,
@@ -152,6 +158,6 @@ if __name__ == "__main__":
     print(encodings["input_ids"])
     print(encodings["attention_mask"])
     print(
-        tokenizer.decode(encodings["input_ids"][2], skip_special_tokens=True)
+        tokenizer.decode(encodings["input_ids"][4], skip_special_tokens=True)
     )
     print("Done")

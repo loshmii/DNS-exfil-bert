@@ -1,0 +1,8 @@
+defaults:
+  - _self_
+  - paths
+  - tokenizer: char
+  - training_arguments: overfitting
+  - dataset: dataset_for_mlm
+  - model: bert_uncased
+  - model_config: bert_config_from_pretrained

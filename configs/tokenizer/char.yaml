@@ -1,15 +1,11 @@
-_target_: data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer.CharTokenizer
-cfg:
-  _target_: data_pipeline.dns_tokenizers.char_dns.v0_1.config.CharTokConfig.get_config_for_char_tok
-  config_src:
-    alphabet: "abcdefghijklmnopqrstuvwxyz0123456789-._"
+alphabet: "abcdefghijklmnopqrstuvwxyz0123456789-._?@:\\(/)`[*"
 
-    pad_token: "[PAD]"
-    unk_token: "[UNK]"
-    cls_token: "[CLS]"
-    sep_token: "[SEP]"
-    mask_token: "[MASK]"
+pad_token: "[PAD]"
+unk_token: "[UNK]"
+cls_token: "[CLS]"
+sep_token: "[SEP]"
+mask_token: "[MASK]"
 
-    max_length: 256
-    padding: True
-    truncation: True
+max_length: 512
+padding: True
+truncation: True

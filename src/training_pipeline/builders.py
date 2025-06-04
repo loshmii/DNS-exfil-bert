@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Union, Any, Tuple
 from datasets import (
     DatasetDict,
     Dataset,
+    IterableDatasetDict,
     load_dataset,
     load_from_disk,
     Features,
@@ -16,6 +17,10 @@ from datasets import (
 from transformers import PreTrainedTokenizerFast, AutoTokenizer
 from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
     BpeTokenizer,
+)
+from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
+    CharTokenizer,
+    CharTokConfig,
 )
 import hydra
 from hydra.core.hydra_config import HydraConfig
@@ -27,44 +32,37 @@ import os
 import torch
 from sklearn.utils.class_weight import compute_class_weight
 import numpy as np
+import pyarrow as pa
+import pyarrow.compute as pc
+import math
+
+BASE = Path(__file__).parent.parent.parent
 
 
-@dataclass #TODO: unify loading for MLM and CLS no need to reject MLM in CLS case
+def _arrow_sqrt_freq(
+    table: pa.Table,
+    col: str = "dup_gid",
+):
+    vc = pc.value_counts(table[col])
+    values = vc.field(0)
+    counts = vc.field(1)
+    dup_ids = values.to_pylist()
+    counts = counts.to_pylist()
+    print("Correctly computed sqrt frequencies for duplicates")
+    return {int(g): math.sqrt(c) for g, c in zip(dup_ids, counts)}
+
+
+@dataclass  # TODO: unify loading for MLM and CLS no need to reject MLM in CLS case
 class DnsDatasetBuilder(ABC):
     raw_files: Dict[str, List[str]]
     tokenizer: PreTrainedTokenizerFast
     streaming: bool = False
     max_length: Optional[int] = None
-    proportion: Optional[
-        Union[DictConfig, Dict, Tuple[float, float, float]]
-    ] = None
     cache_dir: Optional[str] = None
     force_rebuild: Optional[bool] = False
     seed: Optional[int] = 42
 
     def __post_init__(self):
-        if not self.proportion:
-            self.proportion = (0.8, 0.1, 0.1)
-        if isinstance(self.proportion, DictConfig):
-            self.proportion = OmegaConf.to_container(
-                self.proportion, resolve=True
-            )
-        if isinstance(self.proportion, Dict):
-            p_train = self.proportion.get("train", 0.8)
-            p_val = self.proportion.get("validation", 0.1)
-            p_test = self.proportion.get("test", 0.1)
-            self.proportion = (p_train, p_val, p_test)
-        if not isinstance(self.proportion, tuple):
-            raise ValueError(
-                "proportions must be a tuple of three floats or a dict with keys 'train', 'validation', and 'test'"
-            )
-        added = 0
-        for prop in self.proportion:
-            if prop < 0 or prop > 1:
-                raise ValueError("Proportions must be between 0 and 1")
-            added += prop
-        if added != 1:
-            raise ValueError("Proportions must sum to 1")
         if not self.max_length:
             self.max_length = self.tokenizer.model_max_length
 
@@ -79,22 +77,41 @@ class DnsDatasetBuilder(ABC):
     def build(self) -> DatasetDict:
         if self.streaming:
             return self._build_streaming()
-        full = self._prepare()
-        return self._split(full)
+        else:
+            return self._prepare()
 
-    def _build_streaming(self) -> DatasetDict:
+    def _build_streaming(self) -> IterableDatasetDict:
+        ds_stream = load_dataset(
+            "csv",
+            data_files=self.raw_files,
+            streaming=True,
+        )
 
-        ds = self._load_raw()
-        ds = self._preprocess(ds)
-        ds = ds.map(
+        ds_stream = self._preprocess_streaming(ds_stream)
+
+        ds_stream = ds_stream.map(
             self._tokenize,
             batched=True,
-            num_proc=16 if os.cpu_count() >= 16 else 4,
+            num_proc=1,
             remove_columns=["text"],
         )
-        ds = self._postprocess(ds)
 
-        return ds
+        ds_stream = self._postprocess_streaming(ds_stream)
+        return ds_stream
+
+    @abstractmethod
+    def _preprocess_streaming(
+        self,
+        ds: IterableDatasetDict,
+    ) -> IterableDatasetDict:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _postprocess(
+        self,
+        ds: IterableDatasetDict,
+    ) -> IterableDatasetDict:
+        raise NotImplementedError
 
     def _prepare(self) -> Dataset:
         cache_path = Path(self.cache_dir) if self.cache_dir else None
@@ -115,7 +132,10 @@ class DnsDatasetBuilder(ABC):
             except Exception:
                 shutil.rmtree(cache_path)
 
-        ds_dict = self._load_raw()
+        ds_dict = load_dataset(
+            "csv",
+            data_files=self.raw_files,
+        )
         ds_dict = self._preprocess(ds_dict)
         ds_dict = ds_dict.map(
             self._tokenize,
@@ -126,51 +146,17 @@ class DnsDatasetBuilder(ABC):
         ds_dict = self._postprocess(ds_dict)
         ds_dict.set_format("torch")
 
-        full = concatenate_datasets(
-            [
-                ds_dict["train"],
-                ds_dict.get("validation", ds_dict["train"].select([])),
-                ds_dict.get("test", ds_dict["train"].select([])),
-            ]
-        )
-
         if cache_path:
             cache_path.mkdir(parents=True, exist_ok=True)
-            full.save_to_disk(str(cache_path))
+
+            ds_dict.save_to_disk(str(cache_path))
+
             meta = self._build_metadata()
             tmp = cache_path / "metadata.json.tmp"
             tmp.write_text(json.dumps(meta, indent=2))
             tmp.replace(meta_path)
 
-        return full
-
-    def _split(self, full: Dataset) -> DatasetDict:
-        p_train, p_val, p_test = self.proportion
-
-        tr_vs_rest = full.train_test_split(
-            train_size=p_train,
-            shuffle=True,
-            seed=self.seed,
-        )
-        train_ds = tr_vs_rest["train"]
-
-        frac_val_of_rest = p_val / (p_val + p_test)
-
-        val_ds, test_ds = (
-            tr_vs_rest["test"]
-            .train_test_split(
-                train_size=frac_val_of_rest, shuffle=True, seed=self.seed
-            )
-            .values()
-        )
-
-        return DatasetDict(
-            {
-                "train": train_ds,
-                "validation": val_ds,
-                "test": test_ds,
-            }
-        )
+        return ds_dict
 
     def _build_metadata(self) -> Dict[str, Any]:
         files_meta = {}
@@ -245,21 +231,6 @@ class DnsDatasetBuilder(ABC):
             }
         )
 
-    def _load_raw(self) -> DatasetDict:
-        features = Features(
-            {
-                "text": Value(dtype="string"),
-                "label": Value(dtype="int32"),
-            }
-        )
-
-        return load_dataset(
-            "csv",
-            data_files=self.raw_files,
-            streaming=self.streaming,
-            features=features,
-        )
-
     def _dedupe(self, ds: DatasetDict) -> DatasetDict:
         return ds
 
@@ -275,20 +246,30 @@ class DnsDatasetBuilder(ABC):
         )
 
     @abstractmethod
-    def _postprocess(self, ds: DatasetDict) -> DatasetDict: ...
+    def _postprocess(self, ds: DatasetDict) -> DatasetDict:
+        raise NotImplementedError
 
     @abstractmethod
-    def _preprocess(self, ds: DatasetDict) -> DatasetDict: ...
+    def _preprocess(self, ds: DatasetDict) -> DatasetDict:
+        raise NotImplementedError
 
 
 class MLMDatasetBuilder(DnsDatasetBuilder):
 
-    def _preprocess(self, ds):
-        ds = ds.remove_columns(["label"])
-        ds = self._dedupe(ds)
+    def _preprocess(self, ds: DatasetDict) -> DatasetDict:
         return ds
 
-    def _postprocess(self, ds):
+    def _preprocess_streaming(
+        self, ds: IterableDatasetDict
+    ) -> IterableDatasetDict:
+        return ds
+
+    def _postprocess(self, ds: DatasetDict) -> DatasetDict:
+        return ds
+
+    def _postprocess_streaming(
+        self, ds: IterableDatasetDict
+    ) -> IterableDatasetDict:
         return ds
 
 
@@ -298,18 +279,75 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
         "0": 0,
         "1": 1,
     }
+    _dup_weight_map: Optional[Dict[int, float]] = None
 
-    def _preprocess(self, ds):
+    def _build_weight_map(self, ds: DatasetDict, cache_dir: Union[str, Path]):
+        weight_file = Path(cache_dir) / "dup_gid_sqrt_freq.pt"
+        weight_file.parent.mkdir(parents=True, exist_ok=True)
+
+        if weight_file.exists():
+            self._dup_weight_map = torch.load(weight_file)
+            return
+
+        arrow_tbl = ds["train"].data
+        self._dup_weight_map = _arrow_sqrt_freq(arrow_tbl, col="dup_gid")
+        torch.save(self._dup_weight_map, weight_file)
+
+    def _preprocess(self, ds: DatasetDict) -> DatasetDict:
+        ds = ds.remove_columns(["ok", "reason"])
         return ds
 
-    def _postprocess(self, ds):
+    def _preprocess_streaming(
+        self, ds: IterableDatasetDict
+    ) -> IterableDatasetDict:
+        raise NotImplementedError(
+            "Streaming preprocessing is not currently implemented for CLS task"
+        )
+        columns_to_drop = ["ok", "reason", "dup_gid"]
+        return ds.remove_columns(columns_to_drop)
+
+    def _postprocess(self, ds: DatasetDict) -> DatasetDict:
+        print("Postprocessing dataset for CLS task")
+        cache_path = (
+            Path(self.cache_dir) if self.cache_dir else Path(".tmp_weights")
+        )
+        self._build_weight_map(ds, cache_path)
+        if self._dup_weight_map is not None:
+
+            def add_weight(ex):
+                return {
+                    "sample_weight": self._dup_weight_map[int(ex["dup_gid"])]
+                }
+
+            ds["train"] = ds["train"].map(
+                add_weight,
+                num_proc=16 if os.cpu_count() >= 16 else 4,
+                batched=False,
+            )
+        ds = DatasetDict(
+            {
+                "train": ds["train"],
+                "validation": ds["validation"],
+                "test": ds["test"],
+            }
+        )
         return ds.remove_columns(["special_tokens_mask"])
-    
-    def get_class_weights(self, ds: Optional[DatasetDict] = None) -> torch.Tensor:
+
+    def _postprocess_streaming(
+        self, ds: IterableDatasetDict
+    ) -> IterableDatasetDict:
+        raise NotImplementedError(
+            "Streaming postprocessing is not currently implemented for CLS task"
+        )
+        return ds.remove_columns(["special_tokens_mask"])
+
+    def get_class_weights(
+        self, ds: Optional[DatasetDict] = None
+    ) -> torch.Tensor:
         if ds is None:
             ds = self.build()
-        
-        labels = np.array(ds["train"]["label"])
+
+        labels = np.asarray(ds["train"]["label"])
 
         classes = np.unique(labels)
         weights = compute_class_weight(
@@ -322,23 +360,25 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
 
 
 @hydra.main(
-    config_path=str(Path(__file__).parent.parent.parent / "configs"),
+    config_path=str(BASE / "configs"),
     config_name="config",
     version_base="1.3",
 )
 def main(cfg: DictConfig):
 
-    tokenizer = BpeTokenizer.from_pretrained(
-        **OmegaConf.to_container(cfg.tokenizer, resolve=True),
+    tokenizer = CharTokenizer(
+        CharTokConfig(
+            BASE / "configs" / "tokenizer" / "char.yaml",
+        )
     )
 
-    mlm_builder = MLMDatasetBuilder(
+    """mlm_builder = MLMDatasetBuilder(
         tokenizer=tokenizer,
         **OmegaConf.to_container(cfg.dataset.MLM_builder_args, resolve=True),
     )
 
     ds = mlm_builder.build()
-    print(ds["train"][0])
+    print(ds["train"][0])"""
 
     cls_builder = CLSDatasetBuilder(
         tokenizer=tokenizer,

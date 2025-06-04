@@ -16,6 +16,8 @@ from transformers import (
     AutoModelForMaskedLM,
 )
 from omegaconf import OmegaConf
+from data_pipeline.dns_tokenizers.char_dns.v0_1.config import CharTokConfig
+from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import CharTokenizer
 
 if __name__ == "__main__":
 
