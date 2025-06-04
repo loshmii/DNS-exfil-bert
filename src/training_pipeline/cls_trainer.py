@@ -45,6 +45,7 @@ from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
 
 BASE = Path(__file__).parent.parent.parent.resolve()
 
+
 def argmax_logits(logits, labels):
     return logits.argmax(dim=-1)
 
@@ -162,7 +163,9 @@ class CLSTrainer(Trainer):
         else:
             preds = preds.to(self.args.device)
         if isinstance(probs, np.ndarray):
-            probs = torch.from_numpy(probs.astype(np.float32)).to(self.args.device)
+            probs = torch.from_numpy(probs.astype(np.float32)).to(
+                self.args.device
+            )
         else:
             probs = probs.to(self.args.device)
         if isinstance(labels, np.ndarray):
