@@ -24,3 +24,4 @@ artifacts/models/**
 *.lock
 
 from_tensorboard_to_wandb.py
+document.md
