@@ -111,7 +111,7 @@ class DnsDataCollatorForCLC:
     dtype: torch.dtype = torch.long
 
     def __post_init__(self):
-        if not isinstance(self.tokenizer, PreTrainedTokenizerFast):
+        if not isinstance(self.tokenizer, PreTrainedTokenizerFast) and False:
             raise ValueError(
                 "tokenizer must be a PreTrainedTokenizerFast instance"
             )

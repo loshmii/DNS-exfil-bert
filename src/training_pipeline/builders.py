@@ -48,7 +48,6 @@ def _arrow_sqrt_freq(
     counts = vc.field(1)
     dup_ids = values.to_pylist()
     counts = counts.to_pylist()
-    print("Correctly computed sqrt frequencies for duplicates")
     return {int(g): math.sqrt(c) for g, c in zip(dup_ids, counts)}
 
 
@@ -307,7 +306,6 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
         return ds.remove_columns(columns_to_drop)
 
     def _postprocess(self, ds: DatasetDict) -> DatasetDict:
-        print("Postprocessing dataset for CLS task")
         cache_path = (
             Path(self.cache_dir) if self.cache_dir else Path(".tmp_weights")
         )

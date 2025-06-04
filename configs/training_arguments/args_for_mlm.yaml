@@ -4,11 +4,10 @@ trainer_args:
   per_device_train_batch_size: 2
   per_device_eval_batch_size: 2
   gradient_accumulation_steps: 1
-  eval_accumulation_steps: 1
   learning_rate: 5e-5
   weight_decay: 0.01
   num_train_epochs: 3
-  max_steps: 5
+  max_steps: 100
   bf16: false
   fp16: false
   logging_strategy: steps
@@ -21,7 +20,6 @@ trainer_args:
   label_smoothing_factor: 0.1
   report_to: tensorboard
   logging_dir: ${paths.tensorboard}
-  remove_unused_columns: false
 
   optimizer_type: adamw
   lr_scheduler_type: cosine
