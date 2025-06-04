@@ -99,7 +99,8 @@ class DnsDataCollatorForMLM:
         batch["attention_mask"] = attention_mask
         batch.pop("special_tokens_mask", None)
         return batch
-    
+
+
 @dataclass
 class DnsDataCollatorForCLC:
     tokenizer: PreTrainedTokenizerFast
@@ -119,10 +120,12 @@ class DnsDataCollatorForCLC:
                 raise ValueError(
                     "num_labels must be a positive integer when convert_to_one_hot is True"
                 )
-                
-    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+
+    def __call__(
+        self, features: List[Dict[str, Any]]
+    ) -> Dict[str, torch.Tensor]:
         labels_list = [f.pop(self.label_key) for f in features]
-        
+
         batch = self.tokenizer.pad(
             features,
             return_tensors="pt",
@@ -135,13 +138,9 @@ class DnsDataCollatorForCLC:
             )
             label_tensor[
                 torch.arange(len(labels_list)), torch.tensor(labels_list)
-            ] = torch.tensor(
-                1, dtype=self.dtype
-            )
+            ] = torch.tensor(1, dtype=self.dtype)
         else:
-            label_tensor = torch.tensor(
-                labels_list, dtype=self.dtype
-            )
+            label_tensor = torch.tensor(labels_list, dtype=self.dtype)
 
         batch["labels"] = label_tensor
         return batch

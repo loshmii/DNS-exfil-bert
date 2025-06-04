@@ -1,29 +1,28 @@
-files:
+mlm_files:
   train:
-    - ${paths.data}/deduped/train.csv
+    - ${paths.data}/mlm/train.csv
   validation:
-    - ${paths.data}/deduped/val.csv
+    - ${paths.data}/mlm/val.csv
   test:
-    - ${paths.data}/deduped/test.csv
+    - ${paths.data}/mlm/test.csv
+cls_files:
+  train:
+    - ${paths.data}/cls/train.csv
+  validation:
+    - ${paths.data}/cls/val.csv
+  test:
+    - ${paths.data}/cls/test.csv
 
 MLM_builder_args:
-  raw_files: ${dataset.files}
+  raw_files: ${dataset.mlm_files}
   streaming: false
   max_length: 256
-  proportion: 
-    train: 0.8
-    validation: 0.1
-    test: 0.1
   cache_dir: ${paths.root}/experiments/cache
   force_rebuild: false
 
 CLS_builder_args:
-  raw_files: ${dataset.files}
+  raw_files: ${dataset.cls_files}
   streaming: false
-  max_length: 256
-  proportion: 
-    train: 0.8
-    validation: 0.1
-    test: 0.1
+  max_length: 512
   cache_dir: ${paths.root}/experiments/cache
   force_rebuild: false

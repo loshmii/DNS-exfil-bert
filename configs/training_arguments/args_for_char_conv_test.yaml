@@ -1,54 +1,55 @@
 trainer_args:
-  output_dir:  ${paths.output_dir}
+  output_dir:     ${paths.output_dir}
   overwrite_output_dir: true
 
-  per_device_train_batch_size: 16
-  per_device_eval_batch_size: 16
-  gradient_accumulation_steps: 8
+  per_device_train_batch_size: 64
+  per_device_eval_batch_size: 64
+  gradient_accumulation_steps: 1
   dataloader_num_workers: 4
-  eval_accumulation_steps: 20
 
   optimizer_type: adamw
-  learning_rate: 3e-5
-  weight_decay: 0.01
+  learning_rate:  5e-5
+  weight_decay:   0.01
 
   lr_scheduler_type: linear
-  warmup_ratio: 0.01
+  warmup_ratio:      0.01
 
-  num_train_epochs: 3
+  num_train_epochs: 5
   max_steps: -1
 
   bf16: true
   fp16: false
 
   logging_strategy: steps
-  logging_steps: 50
+  logging_steps:    100
   disable_tqdm: false
   report_to: tensorboard
   logging_dir: ${paths.tensorboard}
 
   eval_strategy: steps
-  eval_steps: 200
-  save_steps: 200
-  save_total_limit: 2
+  eval_steps:    500
+  save_steps:    1000
+  save_total_limit: 1
 
-  label_smoothing_factor: 0.1
+  label_smoothing_factor: 0.0
   remove_unused_columns: false
 
-  gradient_checkpointing: true
+  gradient_checkpointing: false
   torch_compile: false
+
 mask_args:
   mlm_probability: 0.15
   strategy: token
   span_lambda: 3.0
   seed: 42
+
 MLM_collator_args:
   pad_to_multiple_of: 8
-  mask_token_prob: 0.8
-  random_token_prob: 0.1
+  mask_token_prob:    0.8
+  random_token_prob:  0.1
+
 CLS_collator_args:
   pad_to_multiple_of: 8
-  label_key: label
+  label_key:          label
   convert_to_one_hot: false
-  num_labels: 2
-
+  num_labels:         2

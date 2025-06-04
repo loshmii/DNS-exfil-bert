@@ -11,16 +11,16 @@ from transformers import (
 from training_pipeline.trainer import (
     add_num_resolver,
     add_parent_resolver,
-    FileLoggingCallback
+    FileLoggingCallback,
 )
-from training_pipeline.cls_trainer import (
-    CLSTrainer,
-    ROCCurveCallback
-)
+from training_pipeline.cls_trainer import CLSTrainer, ROCCurveCallback
 from training_pipeline.arguments import parse_dataclasses
-from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import BpeTokenizer
+from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
+    BpeTokenizer,
+)
 from training_pipeline.builders import CLSDatasetBuilder
 from training_pipeline.data_collator import DnsDataCollatorForCLC
+
 
 @hydra.main(
     config_path=str(Path(__file__).parent.parent.parent / "configs"),
@@ -30,7 +30,7 @@ from training_pipeline.data_collator import DnsDataCollatorForCLC
 @add_parent_resolver
 @add_num_resolver
 def main(cfg: DictConfig):
-    
+
     model_args, train_args = parse_dataclasses(cfg)
 
     output_dir = Path(train_args.output_dir).expanduser().resolve()
@@ -42,7 +42,7 @@ def main(cfg: DictConfig):
 
     root.setLevel(logging.INFO)
     fmt = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(name)s - %(message)s", 
+        "%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
 
     ch = logging.FileHandler(str(output_dir / "training.log"), mode="w")
@@ -71,12 +71,12 @@ def main(cfg: DictConfig):
 
     data_collator = DnsDataCollatorForCLC(
         tokenizer=tokenizer,
-        **OmegaConf.to_container(cfg.training_arguments.CLS_collator_args, resolve=True),
+        **OmegaConf.to_container(
+            cfg.training_arguments.CLS_collator_args, resolve=True
+        ),
     )
 
-    writer = SummaryWriter(
-        log_dir=str(train_args.logging_dir)
-    )
+    writer = SummaryWriter(log_dir=str(train_args.logging_dir))
     trainer = CLSTrainer(
         model=model,
         args=train_args,
@@ -85,9 +85,7 @@ def main(cfg: DictConfig):
         eval_dataset=eval_ds,
         processing_class=tokenizer,
         data_collator=data_collator,
-        callbacks=[
-            FileLoggingCallback()
-        ],
+        callbacks=[FileLoggingCallback()],
         compute_metrics=None,
     )
 
@@ -109,6 +107,7 @@ def main(cfg: DictConfig):
         output_dir=str(output_dir / "model"),
     )
     trainer.save_state()
+
 
 if __name__ == "__main__":
     main()

@@ -81,9 +81,7 @@ class ModelArguments:
     )
     num_labels: Optional[int] = field(
         default=None,
-        metadata={
-            "help": "Number of labels for the classification task."
-        }
+        metadata={"help": "Number of labels for the classification task."},
     )
     local_files_only: Optional[bool] = field(
         default=False,

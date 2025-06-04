@@ -5,7 +5,36 @@ from tqdm import tqdm
 import csv
 import re
 import idna
-import sqlite3
+import zlib
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import StratifiedGroupKFold
+
+
+def load_all(
+    base_path: Union[str, Path],
+    splits: Tuple[str, ...] = ("train", "val", "test"),
+):
+    base_path = Path(base_path)
+    dfs = []
+    for split in splits:
+        fp = base_path / f"{split}.csv"
+        df = pd.read_csv(
+            fp,
+            dtype={
+                "text": str,
+                "label": int,
+                "ok": bool,
+                "reason": int,
+                "dup_gid": "uint32",
+            },
+        )
+        dfs.append(df)
+    full_df = pd.concat(dfs, ignore_index=True)
+    full_df = full_df[
+        full_df["text"].notna() & full_df["text"].str.strip().ne("")
+    ].reset_index(drop=True)
+    return full_df
 
 
 class RawSplitLoader:
@@ -72,36 +101,34 @@ class RawDataIterator:
 
 
 class DomainValidator:
-    LABEL_PATTERN: ClassVar[re.Pattern] = re.compile(
-        r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$"
-    )
-    MAX_DOMAIN_LENGTH: ClassVar[int] = 253
+    LABEL_CHARS = re.compile(r"^[a-z0-9\*_?@()\[\]\\-]+$")
+    DOTS = re.compile(r"\.{2,}")
 
     @classmethod
-    def is_valid(cls, domain: str) -> bool:
-        if not (1 <= len(domain) <= cls.MAX_DOMAIN_LENGTH):
-            return False
-
-        if ".." in domain:
-            return False
-
-        blacklisted_labels = set(
-            [
-                "null",
-                "none",
-                "NaN",
-            ]
-        )
-
+    def is_valid(cls, domain: str) -> Tuple[bool, int]:
+        reasons = 0
+        if len(domain) > 253:
+            reasons |= 0x01  # Too long
+        if any(ord(ch) < 32 for ch in domain):
+            reasons |= 0x02  # Control characters
+        if DomainValidator.DOTS.search(domain):
+            reasons |= 0x04  # Consecutive dots
         labels = domain.split(".")
-        for label in labels:
-            if (
-                not cls.LABEL_PATTERN.match(label)
-                or label in blacklisted_labels
-            ):
-                return False
+        for lbl in labels:
+            if lbl == "":
+                reasons |= 0x08  # Empty label
+                break
+            if lbl == "*":
+                continue
+            if not (lbl[0].isalnum() and lbl[-1].isalnum()):
+                reasons |= (
+                    0x10  # Label does not start and end with alphanumeric
+                )
+            if not DomainValidator.LABEL_CHARS.match(lbl):
+                reasons |= 0x20  # Invalid characters in label
 
-        return True
+        ok = reasons == 0
+        return ok, reasons
 
 
 class CSVQueryValidator:
@@ -127,22 +154,54 @@ class CSVQueryValidator:
 
 class DomainNormalizer:
 
-    DOT_COLLAPSE_PATTERN: ClassVar[re.Pattern] = re.compile(r"\.{2,}")
+    DELIM = re.compile(r"[`[\x00-\x1F]")
+
+    IPV4_FULL = re.compile(
+        r"^(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)"
+        r"(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3}$"
+    )
+
+    DOTS = re.compile(r"\.{2,}")
+    PROTO = re.compile(r"^(?:https?|ftp)://", re.I)
+    USER = re.compile(r"^[^@]+@", re.I)
+    PORT = re.compile(r":\d+$")
 
     @staticmethod
-    def normalize(raw: str, to_unicode: bool = True) -> str:
-        dom = raw.strip().lower()
-        if dom.endswith("."):
-            dom = dom[:-1]
-        dom = DomainNormalizer.DOT_COLLAPSE_PATTERN.sub(".", dom)
-        if dom.startswith("www."):
-            dom = dom[4:]
-        if to_unicode:
-            try:
-                dom = idna.decode(dom)
-            except idna.IDNAError:
-                pass
-        return dom
+    def normalize(raw: str, *, keep_puncycode: bool = True) -> tuple[str, str]:
+        d = raw.strip()
+
+        d = d.replace(r"\(", "(").replace(r"\)", ")")
+
+        if d.startswith("[") and "]" not in d:
+            d = d.lstrip("[")
+        d = d.rstrip("]")
+
+        d = DomainNormalizer.PROTO.sub("", d)
+        d = DomainNormalizer.USER.sub("", d)
+        d = d.split("/", 1)[0]
+
+        if d.startswith("[") and "]" not in d:
+            d = d.lstrip("[")
+        d = d.rstrip("]")
+
+        d = DomainNormalizer.PORT.sub("", d)
+        d = d.rstrip(".")
+        d = DomainNormalizer.DOTS.sub(".", d).lower()
+
+        if DomainNormalizer.IPV4_FULL.match(d):
+            return (d, "")
+
+        try:
+            uidomain = idna.decode(d, strict=False)
+        except idna.IDNAError:
+            uidomain = d
+
+        try:
+            asidomain = idna.encode(uidomain).decode("ascii")
+        except idna.IDNAError:
+            asidomain = d
+
+        return (asidomain, uidomain if keep_puncycode else "")
 
 
 def raw_to_normalized(
@@ -207,7 +266,6 @@ def raw_to_normalized_csv(
     raw_base: Union[str, Path],
     out_base: Union[str, Path],
     splits: Tuple[str, ...] = ("train", "val", "test"),
-    to_unicode: bool = False,
 ):
 
     raw_base = Path(raw_base)
@@ -222,14 +280,14 @@ def raw_to_normalized_csv(
     for split in splits:
         f = open(out_base / f"{split}.csv", "w", encoding="utf-8", newline="")
         w = csv.writer(f)
-        w.writerow(["text", "label"])
+        w.writerow(["text", "label", "ok", "reason", "dup_gid"])
         csv_files[split] = f
         writers[split] = w
 
     try:
         for split in splits:
             total = iterator.count_dmn_in_splt(split)
-            seen = valid = 0
+            seen = 0
             start = time.perf_counter()
 
             for _, raw_dom, label in tqdm(
@@ -242,19 +300,23 @@ def raw_to_normalized_csv(
             ):
                 seen += 1
 
-                dom = DomainNormalizer.normalize(raw_dom, to_unicode)
-                label_str = str(label)
-                line = f"{dom},{label_str}"
-                if not CSVQueryValidator.is_valid(line):
+                clean_ascii, _ = DomainNormalizer.normalize(
+                    raw_dom, keep_puncycode=True
+                )
+                is_valid, reason = DomainValidator.is_valid(clean_ascii)
+                gid = zlib.crc32(clean_ascii.encode("utf-8"))
+
+                if clean_ascii == "":
                     continue
 
-                writers[split].writerow([dom, label_str])
-                valid += 1
+                writers[split].writerow(
+                    [clean_ascii, str(label), is_valid, reason, gid]
+                )
 
             elapsed = time.perf_counter() - start
             rate = seen / elapsed if elapsed > 0 else 0.0
             print(
-                f"[{split:5s}] kept {valid}/{seen}"
+                f"[{split:5s}] written {seen}"
                 f"in {elapsed: .1f}s ({rate :.1f} dom/s)"
             )
     finally:
@@ -262,79 +324,126 @@ def raw_to_normalized_csv(
             f.close()
 
 
+def build_mlm_csvs(
+    raw_base: Union[str, Path],
+    out_base: Union[str, Path],
+    splits: Tuple[str, ...] = ("train", "val", "test"),
+    proportions: Tuple[float, float, float] = (0.8, 0.1, 0.1),
+    seed: int = 42,
+):
+    full_df = load_all(raw_base, splits)
+    out_base = Path(out_base)
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    mlm_candidates = full_df[full_df["ok"] == True].copy()
+    mlm_deduped = mlm_candidates.drop_duplicates(
+        subset="dup_gid", keep="first"
+    )
+
+    out_base = out_base / "mlm"
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    texts = mlm_deduped[["text"]].copy()
+    texts = texts.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+
+    n = len(texts)
+    n_train = int(n * proportions[0])
+    n_val = int(n * proportions[1])
+
+    train_df = texts.iloc[:n_train]
+    val_df = texts.iloc[n_train : n_train + n_val]
+    test_df = texts.iloc[n_train + n_val :]
+
+    for split_name, df_split in [
+        ("train", train_df),
+        ("val", val_df),
+        ("test", test_df),
+    ]:
+        out_fp = out_base / f"{split_name}.csv"
+        df_split.to_csv(out_fp, index=False)
+        print(f"MLM: wrote {len(df_split)} rows to {out_fp}")
+
+
+def build_cls_csvs(
+    raw_base: Union[str, Path],
+    out_base: Union[str, Path],
+    splits: Tuple[str, ...] = ("train", "val", "test"),
+    proportions: Tuple[float, float, float] = (0.8, 0.1, 0.1),
+    seed: int = 42,
+):
+    full_df = load_all(raw_base, splits)
+    out_base = Path(out_base) / "cls"
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    df = full_df.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+    x = np.zeros(len(df), dtype=int)
+    y = df["label"].to_numpy()
+    groups = df["dup_gid"].to_numpy()
+
+    sgkf1 = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=seed)
+    train_idx, temp_idx = next(sgkf1.split(x, y, groups))
+    train_df = df.iloc[train_idx]
+    temp_df = df.iloc[temp_idx]
+
+    y_temp = temp_df["label"].to_numpy()
+    groups_temp = temp_df["dup_gid"].to_numpy()
+    sgkf2 = StratifiedGroupKFold(n_splits=2, shuffle=True, random_state=seed)
+    val_subidx, test_subidx = next(
+        sgkf2.split(np.zeros(len(temp_df)), y_temp, groups_temp)
+    )
+    val_df = temp_df.iloc[val_subidx]
+    test_df = temp_df.iloc[test_subidx]
+
+    for split_name, df_split in [
+        ("train", train_df),
+        ("val", val_df),
+        ("test", test_df),
+    ]:
+        out_fp = out_base / f"{split_name}.csv"
+        df_split.to_csv(out_fp, index=False)
+        print(f"CLS: wrote {len(df_split)} rows to {out_fp}")
+
+
 def remove_duplicates(
     split_csv: Union[str, Path],
     out_dir: Union[str, Path] = None,
-    batch_size: int = 50000,
 ) -> Path:
     split_csv = Path(split_csv)
-    out_dir = Path(out_dir) if out_dir else split_csv
+    out_dir = Path(out_dir) if out_dir else split_csv.parent
     out_dir.mkdir(parents=True, exist_ok=True)
-    db_path = out_dir / f"{split_csv.stem}.db"
+
     uniq_csv = out_dir / f"{split_csv.stem}.csv"
 
-    with split_csv.open("r", encoding="utf-8", newline="") as f:
-        total = sum(1 for _ in f) - 1
+    seen = set()
 
-    conn = sqlite3.connect(db_path)
-    try:
-        cur = conn.cursor()
-        cur.execute("PRAGMA journal_mode=OFF;")
-        cur.execute("PRAGMA synchronous=OFF;")
-        conn.commit()
+    with split_csv.open("r", encoding="utf-8", newline="") as f_in:
+        total = sum(1 for _ in f_in) - 1
 
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS domains (
-                text TEXT PRIMARY KEY,
-                label TEXT NOT NULL
-                );
-        """
-        )
-        conn.commit()
+    with split_csv.open(
+        "r", encoding="utf-8", newline=""
+    ) as rf, uniq_csv.open("w", encoding="utf-8", newline="") as wf:
 
-        batch = []
-        with split_csv.open("r", encoding="utf-8", newline="") as rf:
-            reader = csv.reader(rf)
-            header = next(reader)
-            for row in tqdm(
-                reader,
-                total=total,
-                desc="Inserting into DB",
-                unit="rows",
-                colour="green",
-            ):
-                dom, lbl = row[0].strip(), row[1].strip()
-                batch.append((dom, lbl))
-                if len(batch) >= batch_size:
-                    cur.executemany(
-                        "INSERT OR IGNORE INTO domains (text, label) VALUES (?, ?);",
-                        batch,
-                    )
-                    conn.commit()
-                    batch.clear()
-            if batch:
-                cur.executemany(
-                    "INSERT OR IGNORE INTO domains (text, label) VALUES (?, ?);",
-                    batch,
-                )
-                conn.commit()
-        with uniq_csv.open("w", encoding="utf-8", newline="") as wf:
-            writer = csv.writer(wf)
+        reader = csv.reader(rf)
+        writer = csv.writer(wf)
+
+        header = next(reader, None)
+        if header:
             writer.writerow(header)
-            for txt, lbl in tqdm(
-                cur.execute("SELECT text, label FROM domains ORDER BY rowid;"),
-                desc="Exporting to CSV",
-                unit="rows",
-                colour="green",
-            ):
-                writer.writerow([txt, lbl])
-    finally:
-        conn.close()
-        try:
-            db_path.unlink()
-        except FileNotFoundError:
-            pass
+
+        for row in tqdm(
+            reader,
+            total=total,
+            desc="removing duplicates",
+            unit="rows",
+            colour="blue",
+        ):
+            if not row:
+                continue
+
+            dom = row[0].strip()
+            if dom not in seen:
+                seen.add(dom)
+                writer.writerow(row)
 
     return uniq_csv
 
@@ -346,19 +455,17 @@ if __name__ == "__main__":
     DIR = Path(__file__).parent.parent.parent.resolve()
 
     raw_base = DIR / "data" / "raw"
-    out_base_csv = DIR / "data" / "processed" / "original"
+    out_base_csv = DIR / "data" / "processed"
     raw_to_normalized_csv(
         raw_base,
+        out_base_csv / "original",
+    )
+
+    build_mlm_csvs(
+        out_base_csv / "original",
         out_base_csv,
     )
-    out_base = DIR / "data" / "processed" / "deduped"
-
-    splits = ("train", "val", "test")
-    for split in splits:
-        inp_file = out_base_csv / f"{split}.csv"
-        remove_duplicates(
-            inp_file,
-            out_dir=out_base,
-        )
-        print(f"Removed duplicates from {split} split.")
-    print("All done.")
+    build_cls_csvs(
+        out_base_csv / "original",
+        out_base_csv,
+    )

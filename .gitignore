@@ -4,6 +4,7 @@ __pycache__/
 .hypothesis/**
 .pytest_cache/
 /artifacts/model/**
+/tensorboard/**
 
 /data/
 
@@ -21,3 +22,5 @@ artifacts/models/**
 *.sh
 
 *.lock
+
+from_tensorboard_to_wandb.py
