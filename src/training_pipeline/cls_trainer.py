@@ -38,7 +38,12 @@ from matplotlib import pyplot as plt
 from scipy.special import softmax, expit
 import numpy as np
 from torch.utils.data import DataLoader, WeightedRandomSampler
+from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
+    CharTokenizer,
+    CharTokConfig,
+)
 
+BASE = Path(__file__).parent.parent.parent.resolve()
 
 def argmax_logits(logits, labels):
     return logits.argmax(dim=-1)
@@ -104,7 +109,6 @@ class CLSTrainer(Trainer):
         metrics_threshold: float = 0.5,
         **kwargs,
     ):
-        kwargs["preprocess_logits_for_metrics"] = argmax_logits
         super().__init__(*args, **kwargs)
 
         self.num_labels = num_labels
@@ -144,12 +148,28 @@ class CLSTrainer(Trainer):
             average=None if num_labels > 2 else "macro",
         ).to(self.args.device)
 
+        self._last_eval_logits = None
+        self._last_eval_labels = None
+
     def _update_metrics(
         self,
         preds,
         probs,
         labels,
     ):
+        if isinstance(preds, np.ndarray):
+            preds = torch.from_numpy(preds).long().to(self.args.device)
+        else:
+            preds = preds.to(self.args.device)
+        if isinstance(probs, np.ndarray):
+            probs = torch.from_numpy(probs.astype(np.float32)).to(self.args.device)
+        else:
+            probs = probs.to(self.args.device)
+        if isinstance(labels, np.ndarray):
+            labels = torch.from_numpy(labels).long().to(self.args.device)
+        else:
+            labels = labels.to(self.args.device)
+
         self.acc.update(preds, labels)
         self.prec.update(preds, labels)
         self.rec.update(preds, labels)
@@ -170,6 +190,11 @@ class CLSTrainer(Trainer):
             sampler = base_sampler
         else:
             sampler = None
+
+        if self.args.remove_unused_columns:
+            self.train_dataset = self._remove_unused_columns(
+                self.train_dataset, description="Training"
+            )
 
         return DataLoader(
             self.train_dataset,
@@ -233,15 +258,17 @@ class CLSTrainer(Trainer):
         )
 
         if not self.args.prediction_loss_only:
-            logits = output.predictions
+            raw_logits = output.predictions
             labels = output.label_ids
 
-            self._last_eval_logits, self._last_eval_labels = logits, labels
+            self._last_eval_logits, self._last_eval_labels = raw_logits, labels
 
-            if logits.ndim == 2 and logits.shape[-1] > 1:
-                probs_pos = logits.softmax(dim=-1)[:, 1]
+            if raw_logits.ndim == 2 and raw_logits.shape[-1] > 1:
+                probs_pos = softmax(raw_logits, axis=-1)[:, 1]
+                preds = (probs_pos > 0.5).astype(np.int64)
             else:
-                probs_pos = expit(logits.ravel())
+                probs_pos = expit(raw_logits.ravel())
+                preds = (probs_pos > self.threshold).astype(np.int64)
 
             fpr, tpr, _ = roc_curve(labels, probs_pos)
             recall01 = (
@@ -309,6 +336,7 @@ class CLSTrainer(Trainer):
         return_outputs: bool = False,
         num_items_in_batch: int | None = None,
     ):
+
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
@@ -415,8 +443,10 @@ def main(cfg: DictConfig):
     ch.setFormatter(fmt)
     root.addHandler(ch)
 
-    tokenizer = BpeTokenizer.from_pretrained(
-        **OmegaConf.to_container(cfg.tokenizer, resolve=True)
+    tokenizer = CharTokenizer(
+        CharTokConfig(
+            BASE / "configs" / "tokenizer" / "char.yaml",
+        )
     )
 
     model_cfg = BertConfig(
@@ -436,9 +466,9 @@ def main(cfg: DictConfig):
 
     weights = builder.get_class_weights(ds)
 
-    train_ds = ds["train"].select(range(50))
-    eval_ds = ds["validation"].select(range(10))
-    test_ds = ds["test"].select(range(10))
+    train_ds = ds["train"].select(range(5))
+    eval_ds = ds["validation"].select(range(5))
+    test_ds = ds["test"].select(range(2))
 
     data_collator = DnsDataCollatorForCLC(
         tokenizer=tokenizer,
@@ -464,7 +494,6 @@ def main(cfg: DictConfig):
 
     roc_cb = ROCCurveCallback(
         writer=writer,
-        eval_dataset=eval_ds,
         trainer=trainer,
     )
     trainer.add_callback(roc_cb)
@@ -472,7 +501,7 @@ def main(cfg: DictConfig):
     trainer.train()
 
     loss = trainer.evaluate(
-        eval_dataset=eval_ds,
+        eval_dataset=test_ds,
         metric_key_prefix="test",
     )
 

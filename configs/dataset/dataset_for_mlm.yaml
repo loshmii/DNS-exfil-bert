@@ -17,12 +17,12 @@ MLM_builder_args:
   raw_files: ${dataset.mlm_files}
   streaming: false
   max_length: 256
-  cache_dir: ${paths.root}/experiments/cache
+  cache_dir: ${paths.root}/experiments/cache/mlm
   force_rebuild: false
 
 CLS_builder_args:
   raw_files: ${dataset.cls_files}
   streaming: false
   max_length: 512
-  cache_dir: ${paths.root}/experiments/cache
+  cache_dir: ${paths.root}/experiments/cache/cls
   force_rebuild: false
