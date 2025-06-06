@@ -15,13 +15,13 @@ trainer_args:
   warmup_ratio: 0.1
 
   num_train_epochs: 3
-  max_steps: -1
+  max_steps: 50000
 
   bf16: true
   fp16: false
 
   logging_strategy: steps
-  logging_steps: 50
+  logging_steps: 100
   report_to: tensorboard
   logging_dir: ${paths.tensorboard}
 

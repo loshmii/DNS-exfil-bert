@@ -48,8 +48,8 @@ def _arrow_sqrt_freq(
     counts = vc.field(1)
     dup_ids = values.to_pylist()
     counts = counts.to_pylist()
-    return {int(g): math.sqrt(c) for g, c in zip(dup_ids, counts)}
-
+    map = {g: torch.sqrt(torch.tensor(c, dtype=torch.float32)).item() for g, c in zip(dup_ids, counts)}
+    return map
 
 @dataclass  # TODO: unify loading for MLM and CLS no need to reject MLM in CLS case
 class DnsDatasetBuilder(ABC):
@@ -125,6 +125,7 @@ class DnsDatasetBuilder(ABC):
                 if self._is_cache_valid(saved):
                     ds = load_from_disk(str(cache_path))
                     ds.set_format("torch")
+                    self._populate_weight_map(cache_path)
                     return ds
                 else:
                     raise ValueError("Cache mismatch")
@@ -241,7 +242,6 @@ class DnsDatasetBuilder(ABC):
             return_attention_mask=True,
             return_special_tokens_mask=True,
             return_token_type_ids=False,
-            return_tensors="pt",
         )
 
     @abstractmethod
@@ -250,6 +250,12 @@ class DnsDatasetBuilder(ABC):
 
     @abstractmethod
     def _preprocess(self, ds: DatasetDict) -> DatasetDict:
+        raise NotImplementedError
+    
+    @abstractmethod
+    def _populate_weight_map(
+        self, cache_dir: Union[str, Path]
+    ):
         raise NotImplementedError
 
 
@@ -270,6 +276,11 @@ class MLMDatasetBuilder(DnsDatasetBuilder):
         self, ds: IterableDatasetDict
     ) -> IterableDatasetDict:
         return ds
+    
+    def _populate_weight_map(
+        self, cache_dir: Union[str, Path]
+    ) -> Dict[int, float]:
+        pass  # Not implemented for MLM task, as it is not needed
 
 
 class CLSDatasetBuilder(DnsDatasetBuilder):
@@ -279,6 +290,22 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
         "1": 1,
     }
     _dup_weight_map: Optional[Dict[int, float]] = None
+
+    def _populate_weight_map(self, cache_dir):
+        weight_file = Path(cache_dir) / "dup_gid_sqrt_freq.pt"
+        if weight_file.exists():
+            self._dup_weight_map = torch.load(weight_file)
+        else:
+            raise ValueError(
+                "Duplication weight map is not built yet. Call build first."
+            )
+
+    def get_dup_weight_map(self)->Dict[int, float]:
+        if self._dup_weight_map is None:
+            raise ValueError(
+                "Duplication weight map is not built yet. Call _build_weight_map first."
+            )
+        return self._dup_weight_map
 
     def _build_weight_map(self, ds: DatasetDict, cache_dir: Union[str, Path]):
         weight_file = Path(cache_dir) / "dup_gid_sqrt_freq.pt"
@@ -290,6 +317,7 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
 
         arrow_tbl = ds["train"].data
         self._dup_weight_map = _arrow_sqrt_freq(arrow_tbl, col="dup_gid")
+        print("Building weight map with size:", len(self._dup_weight_map))
         torch.save(self._dup_weight_map, weight_file)
 
     def _preprocess(self, ds: DatasetDict) -> DatasetDict:
@@ -328,6 +356,11 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
                 "validation": ds["validation"],
                 "test": ds["test"],
             }
+        )
+        ds = ds.map(
+            lambda ex: {"dup_gid": int(ex["dup_gid"])},
+            num_proc=16 if os.cpu_count() >= 16 else 4,
+            batched=False,
         )
         return ds.remove_columns(["special_tokens_mask"])
 
