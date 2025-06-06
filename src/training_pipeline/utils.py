@@ -3,15 +3,16 @@ from datasets import Dataset
 from transformers import TrainerCallback, TrainerControl, TrainerState
 from typing import List, Any
 
+
 def stratified_subsets(
-        dataset: Dataset,
-        num_subsets: int,
-        label_key: str = "label",
-        seed: int = 42
-)-> List[Dataset]:
+    dataset: Dataset,
+    num_subsets: int,
+    label_key: str = "label",
+    seed: int = 42,
+) -> List[Dataset]:
     if num_subsets < 1:
         raise ValueError("Number of subsets must be at least 1.")
-    
+
     labels = np.array(dataset[label_key])
     unique = np.unique(labels)
     rng = np.random.default_rng(seed)
@@ -32,7 +33,8 @@ def stratified_subsets(
     for idx in splits:
         rng.shuffle(idx)
         subsets.append(dataset.select(idx))
-    return subsets 
+    return subsets
+
 
 class EvalSubsetCallback(TrainerCallback):
     def __init__(self, trainer, subsets: List[Dataset]):
@@ -41,11 +43,7 @@ class EvalSubsetCallback(TrainerCallback):
         self._idx = 0
 
     def on_step_end(
-        self, 
-        args,
-        state: TrainerState,
-        control: TrainerControl,
-        **kwargs: Any
+        self, args, state: TrainerState, control: TrainerControl, **kwargs: Any
     ):
         if control.should_evaluate and self.subsets:
             self.trainer.eval_dataset = self.subsets[self._idx]

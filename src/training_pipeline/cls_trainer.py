@@ -199,9 +199,7 @@ class CLSTrainer(Trainer):
 
             global_map = self.model.config._dup_weight_map
             present_gids = sorted(gid_to_idx.keys())
-            present_weights = [
-                global_map[gid] for gid in present_gids
-            ]
+            present_weights = [global_map[gid] for gid in present_gids]
 
             sampler = GroupWeightedRandomSampler(
                 dup_gids=present_gids,
@@ -522,9 +520,7 @@ def main(cfg: DictConfig):
         trainer=trainer,
     )
     trainer.add_callback(roc_cb)
-    trainer.add_callback(
-        EvalSubsetCallback(trainer, eval_splits)
-    )
+    trainer.add_callback(EvalSubsetCallback(trainer, eval_splits))
 
     trainer.train()
 
