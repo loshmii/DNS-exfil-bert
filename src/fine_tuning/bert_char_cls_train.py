@@ -47,6 +47,10 @@ from training_pipeline.cls_trainer import (
     CLSTrainer,
     ROCCurveCallback,
 )
+from training_pipeline.utils import (
+    stratified_subsets,
+    EvalSubsetCallback
+)
 
 BASE = Path(__file__).parent.parent.parent
 
@@ -104,6 +108,12 @@ def main(cfg: DictConfig):
     eval_ds = ds["validation"]
     test_ds = ds["test"]
 
+    num_subsets = 8
+    eval_subsets = stratified_subsets(
+        dataset=eval_ds,
+        num_subsets=num_subsets,
+    )
+
     data_collator = DnsDataCollatorForCLC(
         tokenizer=tokenizer,
         **OmegaConf.to_container(
@@ -113,13 +123,12 @@ def main(cfg: DictConfig):
 
     writer = SummaryWriter(log_dir=str(train_args.logging_dir))
 
-    print("Starting training with the following configuration:")
     trainer = CLSTrainer(
         model=model,
         args=train_args,
         class_weights=weights,
         train_dataset=train_ds,
-        eval_dataset=eval_ds,
+        eval_dataset=eval_subsets[0],
         processing_class=tokenizer,
         data_collator=data_collator,
         callbacks=[
@@ -133,6 +142,12 @@ def main(cfg: DictConfig):
         trainer=trainer,
     )
     trainer.add_callback(roc_cb)
+    trainer.add_callback(
+        EvalSubsetCallback(
+            trainer=trainer,
+            subsets=eval_subsets,
+        )
+    )
 
     trainer.train()
 

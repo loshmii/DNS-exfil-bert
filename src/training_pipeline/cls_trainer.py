@@ -44,6 +44,10 @@ from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
 )
 from training_pipeline.sampler import GroupWeightedRandomSampler
 from collections import defaultdict
+from training_pipeline.utils import (
+    stratified_subsets,
+    EvalSubsetCallback,
+)
 
 BASE = Path(__file__).parent.parent.parent.resolve()
 
@@ -485,8 +489,11 @@ def main(cfg: DictConfig):
     weights = builder.get_class_weights()
 
     train_ds = ds["train"].select(range(5))
-    eval_ds = ds["validation"].select(range(5))
+    eval_ds = ds["validation"].select(range(4))
     test_ds = ds["test"].select(range(2))
+
+    num_subsets = 2
+    eval_splits = stratified_subsets(eval_ds, num_subsets)
 
     data_collator = DnsDataCollatorForCLC(
         tokenizer=tokenizer,
@@ -501,7 +508,7 @@ def main(cfg: DictConfig):
         args=train_args,
         class_weights=weights,
         train_dataset=train_ds,
-        eval_dataset=eval_ds,
+        eval_dataset=eval_splits[0],
         processing_class=tokenizer,
         data_collator=data_collator,
         callbacks=[
@@ -515,6 +522,9 @@ def main(cfg: DictConfig):
         trainer=trainer,
     )
     trainer.add_callback(roc_cb)
+    trainer.add_callback(
+        EvalSubsetCallback(trainer, eval_splits)
+    )
 
     trainer.train()
 
