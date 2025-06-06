@@ -27,3 +27,6 @@ artifacts/models/**
 
 from_tensorboard_to_wandb.py
 document.md
+
+tests/data/test_dup_gid_roundtrip.py
+tests/data/__pycache__/
