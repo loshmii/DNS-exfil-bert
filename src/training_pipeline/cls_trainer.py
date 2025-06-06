@@ -193,17 +193,16 @@ class CLSTrainer(Trainer):
             for idx, gid in enumerate(dup_gids):
                 gid_to_idx[gid].append(idx)
 
-            dup_weights_map = self.model.config._dup_weight_map
-            gids_sorted = sorted(dup_weights_map)
-            weights = [dup_weights_map[gid] for gid in gids_sorted]
-            print(gid_to_idx)
-            print(len(self.train_dataset))
-            exit()
+            global_map = self.model.config._dup_weight_map
+            present_gids = sorted(gid_to_idx.keys())
+            present_weights = [
+                global_map[gid] for gid in present_gids
+            ]
 
             sampler = GroupWeightedRandomSampler(
-                dup_gids=gids_sorted,
+                dup_gids=present_gids,
                 dup_gid_to_indices=gid_to_idx,
-                group_weights=weights,
+                group_weights=present_weights,
                 num_samples=len(self.train_dataset),
             )
         else:

@@ -28,30 +28,29 @@ class GroupWeightedRandomSampler(Sampler[int]):
 
         self.dup_gids = torch.as_tensor(dup_gids, dtype=torch.long)
         self.group_weights = torch.as_tensor(group_weights, dtype=torch.double)
+        assert self.group_weights.min() > 0, (
+            "All group weights must be positive, "
+            f"got {self.group_weights.min()}"
+        )
 
         self.dup_gid_to_indices = dup_gid_to_indices
         self.num_samples = num_samples
         self.generator = generator or torch.Generator()
 
     def __iter__(self) -> Iterable[int]:
-        sampled_gids = torch.multinomial(
+        pos = torch.multinomial(
             self.group_weights,
             self.num_samples,
             replacement=True,
             generator=self.generator,
         )
-
-        for gid in sampled_gids.tolist():
-            gid = self.dup_gids[gid].item()
-            candidates = self.dup_gid_to_indices[gid]
-
-            pick = torch.randint(
-                low=0,
-                high=len(candidates),
-                size=(),
-                generator=self.generator,
-            ).item()
-            yield candidates[pick]
+        for p in pos.tolist():
+            candidates = self.dup_gid_to_indices[self.dup_gids[p].item()]
+            yield candidates[
+                torch.randint(
+                    len(candidates), (1,), generator=self.generator
+                ).item()
+            ]
 
     def __len__(self) -> int:
         return self.num_samples
