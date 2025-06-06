@@ -48,8 +48,12 @@ def _arrow_sqrt_freq(
     counts = vc.field(1)
     dup_ids = values.to_pylist()
     counts = counts.to_pylist()
-    map = {g: torch.sqrt(torch.tensor(c, dtype=torch.float32)).item() for g, c in zip(dup_ids, counts)}
+    map = {
+        g: torch.sqrt(torch.tensor(c, dtype=torch.float32)).item()
+        for g, c in zip(dup_ids, counts)
+    }
     return map
+
 
 @dataclass  # TODO: unify loading for MLM and CLS no need to reject MLM in CLS case
 class DnsDatasetBuilder(ABC):
@@ -251,11 +255,9 @@ class DnsDatasetBuilder(ABC):
     @abstractmethod
     def _preprocess(self, ds: DatasetDict) -> DatasetDict:
         raise NotImplementedError
-    
+
     @abstractmethod
-    def _populate_weight_map(
-        self, cache_dir: Union[str, Path]
-    ):
+    def _populate_weight_map(self, cache_dir: Union[str, Path]):
         raise NotImplementedError
 
 
@@ -276,7 +278,7 @@ class MLMDatasetBuilder(DnsDatasetBuilder):
         self, ds: IterableDatasetDict
     ) -> IterableDatasetDict:
         return ds
-    
+
     def _populate_weight_map(
         self, cache_dir: Union[str, Path]
     ) -> Dict[int, float]:
@@ -300,7 +302,7 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
                 "Duplication weight map is not built yet. Call build first."
             )
 
-    def get_dup_weight_map(self)->Dict[int, float]:
+    def get_dup_weight_map(self) -> Dict[int, float]:
         if self._dup_weight_map is None:
             raise ValueError(
                 "Duplication weight map is not built yet. Call _build_weight_map first."

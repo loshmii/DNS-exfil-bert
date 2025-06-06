@@ -31,7 +31,6 @@ trainer_args:
   save_total_limit: 2
 
   label_smoothing_factor: 0.1
-  remove_unused_columns: false
 
   gradient_checkpointing: false
   torch_compile: false

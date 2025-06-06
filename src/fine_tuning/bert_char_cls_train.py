@@ -47,10 +47,7 @@ from training_pipeline.cls_trainer import (
     CLSTrainer,
     ROCCurveCallback,
 )
-from training_pipeline.utils import (
-    stratified_subsets,
-    EvalSubsetCallback
-)
+from training_pipeline.utils import stratified_subsets, EvalSubsetCallback
 
 BASE = Path(__file__).parent.parent.parent
 
