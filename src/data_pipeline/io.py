@@ -9,6 +9,9 @@ import zlib
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedGroupKFold
+from tqdm.auto import tqdm
+
+tqdm.pandas(desc="Processing", unit="rows", colour="green")
 
 
 def load_all(
@@ -324,6 +327,53 @@ def raw_to_normalized_csv(
             f.close()
 
 
+def raw_to_normalized_csv_one_file(
+    raw_base: Union[str, Path],
+    out_base: Union[str, Path],
+):
+    raw_base = Path(raw_base)
+    out_base = Path(out_base)
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    print(f"Reading raw data from {raw_base}")
+    df = pd.read_csv(
+        raw_base,
+        dtype={
+            "Subdomain": str,
+            "Exfiltration": int,
+        },
+    )
+
+    df_copy = df.copy()
+    df_copy["text"] = df_copy["Subdomain"].progress_apply(
+        lambda x: DomainNormalizer.normalize(x, keep_puncycode=True)[0]
+    )
+    df_copy["ok"] = df_copy["Subdomain"].progress_apply(
+        lambda x: DomainValidator.is_valid(x)[0]
+    )
+    df_copy["reason"] = df_copy["Subdomain"].progress_apply(
+        lambda x: DomainValidator.is_valid(x)[1]
+    )
+    df_copy["dup_gid"] = df_copy["Subdomain"].progress_apply(
+        lambda x: zlib.crc32(x.encode("utf-8"))
+    )
+    print("Converting Exfiltration to label")
+    df_copy["label"] = df_copy["Exfiltration"].astype(int)
+
+    print("Cleaning up")
+    df_copy = df_copy[["text", "label", "ok", "reason", "dup_gid"]]
+    df_copy = df_copy[
+        df_copy["text"].notna() & df_copy["text"].str.strip().ne("")
+    ]
+
+    print(f"Writing to {out_base / 'all.csv'}")
+    df_copy.to_csv(
+        out_base / "all.csv",
+        index=False,
+        encoding="utf-8",
+    )
+
+
 def build_mlm_csvs(
     raw_base: Union[str, Path],
     out_base: Union[str, Path],
@@ -353,6 +403,57 @@ def build_mlm_csvs(
     train_df = texts.iloc[:n_train]
     val_df = texts.iloc[n_train : n_train + n_val]
     test_df = texts.iloc[n_train + n_val :]
+
+    for split_name, df_split in [
+        ("train", train_df),
+        ("val", val_df),
+        ("test", test_df),
+    ]:
+        out_fp = out_base / f"{split_name}.csv"
+        df_split.to_csv(out_fp, index=False)
+        print(f"MLM: wrote {len(df_split)} rows to {out_fp}")
+
+
+def build_mlm_csvs_one_file(
+    raw_base: Union[str, Path],
+    out_base: Union[str, Path],
+    splits: Tuple[str, ...] = ("train", "val", "test"),
+    proportions: Tuple[float, float, float] = (0.8, 0.1, 0.1),
+    seed: int = 42,
+):
+    raw_base = Path(raw_base)
+    out_base = Path(out_base)
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    mlm_candidates = pd.read_csv(
+        raw_base,
+        dtype={
+            "text": str,
+            "label": int,
+            "ok": bool,
+            "reason": int,
+            "dup_gid": "uint32",
+        },
+    )
+    mlm_candidates = mlm_candidates[mlm_candidates["ok"] == True].copy()
+    mlm_deduped = mlm_candidates.drop_duplicates(
+        subset="dup_gid", keep="first"
+    )
+
+    out_base = out_base / "mlm"
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    texts = mlm_deduped[["text"]].copy()
+    texts = texts.sample(frac=1.0, random_state=42).reset_index(drop=True)
+
+    n = len(texts)
+    n_train = int(n * proportions[0])
+    n_val = int(n * proportions[1])
+    n_test = n - n_train - n_val
+
+    train_df = texts.iloc[:n_train]
+    val_df = texts.iloc[n_train : n_train + n_val]
+    test_df = texts.iloc[n_train + n_val : n_train + n_val + n_test]
 
     for split_name, df_split in [
         ("train", train_df),
@@ -394,6 +495,60 @@ def build_cls_csvs(
     val_df = temp_df.iloc[val_subidx]
     test_df = temp_df.iloc[test_subidx]
 
+    for split_name, df_split in [
+        ("train", train_df),
+        ("val", val_df),
+        ("test", test_df),
+    ]:
+        out_fp = out_base / f"{split_name}.csv"
+        df_split.to_csv(out_fp, index=False)
+        print(f"CLS: wrote {len(df_split)} rows to {out_fp}")
+
+
+def build_cls_csvs_one_file(
+    raw_base: Union[str, Path],
+    out_base: Union[str, Path],
+    splits: Tuple[str, ...] = ("train", "val", "test"),
+    proportions: Tuple[float, float, float] = (0.8, 0.1, 0.1),
+    seed: int = 42,
+):
+    raw_base = Path(raw_base)
+    out_base = Path(out_base) / "cls"
+    out_base.mkdir(parents=True, exist_ok=True)
+
+    print(f"Reading raw data from {raw_base}")
+    df = pd.read_csv(
+        raw_base,
+        dtype={
+            "text": str,
+            "label": int,
+            "ok": bool,
+            "reason": int,
+            "dup_gid": "uint32",
+        },
+    )
+
+    print("Splitting and shuffling data")
+    df = df.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+    x = np.zeros(len(df), dtype=int)
+    y = df["label"].to_numpy()
+    groups = df["dup_gid"].to_numpy()
+
+    sgkf1 = StratifiedGroupKFold(n_splits=5, shuffle=True, random_state=seed)
+    train_idx, temp_idx = next(sgkf1.split(x, y, groups))
+    train_df = df.iloc[train_idx]
+    temp_df = df.iloc[temp_idx]
+
+    y_temp = temp_df["label"].to_numpy()
+    groups_temp = temp_df["dup_gid"].to_numpy()
+    sgkf2 = StratifiedGroupKFold(n_splits=2, shuffle=True, random_state=seed)
+    val_subidx, test_subidx = next(
+        sgkf2.split(np.zeros(len(temp_df)), y_temp, groups_temp)
+    )
+    val_df = temp_df.iloc[val_subidx]
+    test_df = temp_df.iloc[test_subidx]
+
+    print("Writing to CSV files")
     for split_name, df_split in [
         ("train", train_df),
         ("val", val_df),
@@ -454,7 +609,7 @@ def remove_duplicates(
 if __name__ == "__main__":
     DIR = Path(__file__).parent.parent.parent.resolve()
 
-    raw_base = DIR / "data" / "raw"
+    """raw_base = DIR / "data" / "raw"
     out_base_csv = DIR / "data" / "processed"
     raw_to_normalized_csv(
         raw_base,
@@ -468,4 +623,24 @@ if __name__ == "__main__":
     build_cls_csvs(
         out_base_csv / "original",
         out_base_csv,
+    )"""
+    RAW_DIR = Path("/home/milos.tomic.etf/Downloads/data/raw_data.csv")
+    OUT_DIR = Path("/home/milos.tomic.etf/Downloads/data/new_processed")
+    MLM_DIR = Path(
+        "/home/milos.tomic.etf/projects/DNS-exfil-bert/data/processed"
+    )
+    CLS_DIR = Path(
+        "/home/milos.tomic.etf/projects/DNS-exfil-bert/data/processed"
+    )
+    """raw_to_normalized_csv_one_file(
+        RAW_DIR,
+        OUT_DIR,
+    )"""
+    """build_mlm_csvs_one_file(
+        OUT_DIR / "all.csv",
+        MLM_DIR,
+    )"""
+    build_cls_csvs_one_file(
+        OUT_DIR / "all.csv",
+        CLS_DIR,
     )

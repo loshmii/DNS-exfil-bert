@@ -25,9 +25,15 @@ from omegaconf import DictConfig, OmegaConf
 from data_pipeline.dns_tokenizers.bpe_dns.v0_1.bpe_tokenizer import (
     BpeTokenizer,
 )
+from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
+    CharTokenizer,
+    CharTokConfig,
+)
 import torchmetrics
 import time
 from typing import Dict, Sequence, Any
+
+BASE = Path(__file__).parent.parent.parent
 
 
 def argmax_logits(logits, labels):
@@ -375,8 +381,10 @@ def main(cfg: DictConfig):
     ch.setFormatter(fmt)
     root.addHandler(ch)
 
-    tokenizer = BpeTokenizer.from_pretrained(
-        **OmegaConf.to_container(cfg.tokenizer, resolve=True),
+    tokenizer = CharTokenizer(
+        CharTokConfig(
+            BASE / "configs" / "tokenizer" / "char.yaml",
+        )
     )
 
     model_cfg = BertConfig(
@@ -392,9 +400,9 @@ def main(cfg: DictConfig):
     )
     ds = builder.build()
 
-    train_ds = ds["train"].select(range(50))
-    eval_ds = ds["validation"].select(range(10))
-    test_ds = ds["test"].select(range(10))
+    train_ds = ds["train"].select(range(1))
+    eval_ds = ds["validation"].select(range(1))
+    test_ds = ds["test"].select(range(1))
 
     mask_sampler = MaskSampler(
         **OmegaConf.to_container(
@@ -409,6 +417,8 @@ def main(cfg: DictConfig):
             cfg.training_arguments.MLM_collator_args, resolve=True
         ),
     )
+
+    train_args.remove_unused_columns = False
 
     trainer = MLMTrainer(
         model=model,

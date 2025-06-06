@@ -42,6 +42,8 @@ from data_pipeline.dns_tokenizers.char_dns.v0_1.char_tokenizer import (
     CharTokenizer,
     CharTokConfig,
 )
+from training_pipeline.sampler import GroupWeightedRandomSampler
+from collections import defaultdict
 
 BASE = Path(__file__).parent.parent.parent.resolve()
 
@@ -152,6 +154,11 @@ class CLSTrainer(Trainer):
         self._last_eval_logits = None
         self._last_eval_labels = None
 
+    def get_dup_weight_map(self) -> Dict[int, float]:
+        if self._dup_weight_map is None:
+            raise RuntimeError("Call .build() before accessing this method.")
+        return self._dup_weight_map
+
     def _update_metrics(
         self,
         preds,
@@ -180,17 +187,25 @@ class CLSTrainer(Trainer):
         self.auroc.update(probs, labels)
 
     def get_train_dataloader(self):
-        if "sample_weight" in self.train_dataset.column_names:
-            w = torch.tensor(
-                self.train_dataset["sample_weight"],
-                dtype=torch.double,
+        if "dup_gid" in self.train_dataset.column_names:
+            dup_gids = [int(x) for x in self.train_dataset["dup_gid"]]
+            gid_to_idx = defaultdict(list)
+            for idx, gid in enumerate(dup_gids):
+                gid_to_idx[gid].append(idx)
+
+            dup_weights_map = self.model.config._dup_weight_map
+            gids_sorted = sorted(dup_weights_map)
+            weights = [dup_weights_map[gid] for gid in gids_sorted]
+            print(gid_to_idx)
+            print(len(self.train_dataset))
+            exit()
+
+            sampler = GroupWeightedRandomSampler(
+                dup_gids=gids_sorted,
+                dup_gid_to_indices=gid_to_idx,
+                group_weights=weights,
+                num_samples=len(self.train_dataset),
             )
-            base_sampler = WeightedRandomSampler(
-                weights=w,
-                num_samples=len(w),
-                replacement=True,
-            )
-            sampler = base_sampler
         else:
             sampler = None
 
@@ -467,7 +482,8 @@ def main(cfg: DictConfig):
     )
     ds = builder.build()
 
-    weights = builder.get_class_weights(ds)
+    model.config._dup_weight_map = builder.get_dup_weight_map()
+    weights = builder.get_class_weights()
 
     train_ds = ds["train"].select(range(5))
     eval_ds = ds["validation"].select(range(5))

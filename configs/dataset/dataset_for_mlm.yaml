@@ -16,7 +16,7 @@ cls_files:
 MLM_builder_args:
   raw_files: ${dataset.mlm_files}
   streaming: false
-  max_length: 256
+  max_length: 512
   cache_dir: ${paths.root}/experiments/cache/mlm
   force_rebuild: false
 
