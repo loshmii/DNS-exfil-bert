@@ -97,6 +97,7 @@ def main(cfg: DictConfig):
     )
     ds = builder.build()
 
+    model.config._dup_weight_map = builder.get_dup_weight_map()
     weights = builder.get_class_weights()
 
     train_ds = ds["train"]
