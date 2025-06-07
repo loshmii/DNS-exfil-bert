@@ -632,15 +632,16 @@ if __name__ == "__main__":
     CLS_DIR = Path(
         "/home/milos.tomic.etf/projects/DNS-exfil-bert/data/processed"
     )
-    """raw_to_normalized_csv_one_file(
+    raw_to_normalized_csv_one_file(
         RAW_DIR,
         OUT_DIR,
-    )"""
-    """build_mlm_csvs_one_file(
+    )
+    build_mlm_csvs_one_file(
         OUT_DIR / "all.csv",
         MLM_DIR,
-    )"""
+    )
     build_cls_csvs_one_file(
         OUT_DIR / "all.csv",
         CLS_DIR,
+        seed=0
     )

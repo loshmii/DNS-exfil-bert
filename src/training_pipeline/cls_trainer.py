@@ -488,7 +488,7 @@ def main(cfg: DictConfig):
 
     train_ds = ds["train"].select(range(5))
     eval_ds = ds["validation"].select(range(4))
-    test_ds = ds["test"].select(range(2))
+    test_ds = ds["test"].select(range(20))
 
     num_subsets = 2
     eval_splits = stratified_subsets(eval_ds, num_subsets)

@@ -2,7 +2,22 @@ import numpy as np
 from datasets import Dataset
 from transformers import TrainerCallback, TrainerControl, TrainerState
 from typing import List, Any
+import pyarrow as pa
 
+def dedup_dataset_keep_first(
+    dataset: Dataset,
+    dedup_column: str,
+):
+    tbl = dataset.data.table
+
+    row_ids = pa.array(range(tbl.num_rows), type=pa.int64())
+
+    tbl = tbl.append_column('row_id', row_ids)
+    tbl = tbl.group_by(dedup_column, use_threads=False).aggregate([('row_id', 'hash_min')])
+    
+    rows = tbl['row_id_min'].to_pylist()
+    
+    return dataset.select(rows)
 
 def stratified_subsets(
     dataset: Dataset,
@@ -12,7 +27,7 @@ def stratified_subsets(
 ) -> List[Dataset]:
     if num_subsets < 1:
         raise ValueError("Number of subsets must be at least 1.")
-
+    
     labels = np.array(dataset[label_key])
     unique = np.unique(labels)
     rng = np.random.default_rng(seed)
@@ -42,10 +57,15 @@ class EvalSubsetCallback(TrainerCallback):
         self.subsets = subsets
         self._idx = 0
 
-    def on_step_end(
-        self, args, state: TrainerState, control: TrainerControl, **kwargs: Any
-    ):
-        if control.should_evaluate and self.subsets:
-            self.trainer.eval_dataset = self.subsets[self._idx]
+    def on_evaluate(self, 
+        args: Any,
+        state: TrainerState,
+        control: TrainerControl,
+        metrics: dict,
+        **kwargs: Any,
+        ) -> TrainerControl:
+        prefix= list(metrics.keys())[0].split("_")[0] if metrics else ""
+        if prefix != "test":
             self._idx = (self._idx + 1) % len(self.subsets)
+            self.trainer.eval_dataset = self.subsets[self._idx]
         return control

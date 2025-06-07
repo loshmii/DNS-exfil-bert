@@ -35,6 +35,8 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 import math
+from training_pipeline.utils import dedup_dataset_keep_first
+from datasets import Features, Value
 
 BASE = Path(__file__).parent.parent.parent
 
@@ -64,6 +66,7 @@ class DnsDatasetBuilder(ABC):
     cache_dir: Optional[str] = None
     force_rebuild: Optional[bool] = False
     seed: Optional[int] = 42
+    ds: Optional[Union[DatasetDict, IterableDatasetDict]] = None
 
     def __post_init__(self):
         if not self.max_length:
@@ -77,11 +80,12 @@ class DnsDatasetBuilder(ABC):
                 f"max_length must be between 0 and {self.tokenizer.model_max_length}"
             )
 
-    def build(self) -> DatasetDict:
+    def build(self) -> Union[DatasetDict, IterableDatasetDict]:
         if self.streaming:
-            return self._build_streaming()
+            self.ds = self._build_streaming()
         else:
-            return self._prepare()
+            self.ds = self._prepare()
+        return self.ds
 
     def _build_streaming(self) -> IterableDatasetDict:
         ds_stream = load_dataset(
@@ -243,6 +247,7 @@ class DnsDatasetBuilder(ABC):
             examples["text"],
             max_length=self.max_length,
             padding="max_length",
+            truncation=True,
             return_attention_mask=True,
             return_special_tokens_mask=True,
             return_token_type_ids=False,
@@ -319,7 +324,6 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
 
         arrow_tbl = ds["train"].data
         self._dup_weight_map = _arrow_sqrt_freq(arrow_tbl, col="dup_gid")
-        print("Building weight map with size:", len(self._dup_weight_map))
         torch.save(self._dup_weight_map, weight_file)
 
     def _preprocess(self, ds: DatasetDict) -> DatasetDict:
@@ -352,6 +356,16 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
                 num_proc=16 if os.cpu_count() >= 16 else 4,
                 batched=False,
             )
+
+        ds['validation'] = dedup_dataset_keep_first(
+            ds['validation'],
+            dedup_column='dup_gid',
+        )
+        ds['test'] = dedup_dataset_keep_first(
+            ds['test'],
+            dedup_column='dup_gid',
+        )
+
         ds = DatasetDict(
             {
                 "train": ds["train"],
@@ -359,11 +373,7 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
                 "test": ds["test"],
             }
         )
-        ds = ds.map(
-            lambda ex: {"dup_gid": int(ex["dup_gid"])},
-            num_proc=16 if os.cpu_count() >= 16 else 4,
-            batched=False,
-        )
+
         return ds.remove_columns(["special_tokens_mask"])
 
     def _postprocess_streaming(
@@ -375,12 +385,12 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
         return ds.remove_columns(["special_tokens_mask"])
 
     def get_class_weights(
-        self, ds: Optional[DatasetDict] = None
+        self
     ) -> torch.Tensor:
-        if ds is None:
-            ds = self.build()
+        if self.ds is None:
+            self.build()
 
-        labels = np.asarray(ds["train"]["label"])
+        labels = np.asarray(self.ds["train"]["label"])
 
         classes = np.unique(labels)
         weights = compute_class_weight(
@@ -418,7 +428,8 @@ def main(cfg: DictConfig):
         **OmegaConf.to_container(cfg.dataset.CLS_builder_args, resolve=True),
     )
     ds = cls_builder.build()
-    print(ds["train"][0])
+    print(len(ds['validation']))
+    print(len(ds['test']))
 
 
 if __name__ == "__main__":

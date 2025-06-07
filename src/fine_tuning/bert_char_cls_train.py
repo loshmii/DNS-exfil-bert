@@ -48,6 +48,10 @@ from training_pipeline.cls_trainer import (
     ROCCurveCallback,
 )
 from training_pipeline.utils import stratified_subsets, EvalSubsetCallback
+import pyarrow as pa
+from datasets import Value
+import pyarrow.compute as pc
+from datasets import Dataset
 
 BASE = Path(__file__).parent.parent.parent
 
@@ -85,6 +89,10 @@ def main(cfg: DictConfig):
         )
     )
 
+    model_config = BertConfig(
+        vocab_size=tokenizer.vocab_size,
+        **OmegaConf.to_container(cfg.model_config, resolve=True),
+    )
     model = BertForSequenceClassification._from_config(
         BertConfig(
             vocab_size=tokenizer.vocab_size,
@@ -105,10 +113,10 @@ def main(cfg: DictConfig):
     eval_ds = ds["validation"]
     test_ds = ds["test"]
 
-    num_subsets = 8
     eval_subsets = stratified_subsets(
-        dataset=eval_ds,
-        num_subsets=num_subsets,
+        eval_ds,
+        num_subsets=4,
+        seed=0,
     )
 
     data_collator = DnsDataCollatorForCLC(

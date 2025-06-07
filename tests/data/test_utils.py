@@ -1,5 +1,5 @@
 from datasets import Dataset
-from training_pipeline.utils import stratified_subsets
+from training_pipeline.utils import stratified_subsets, dedup_dataset_keep_first
 
 
 def test_stratified_subsets_balanced():
@@ -20,3 +20,20 @@ def test_stratified_subsets_balanced():
         ratio = sum(sub["label"]) / len(sub)
         assert abs(ratio - total_ratio) < 1e-6
     assert total_len == len(ds)
+
+def test_dedup_dataset_keep_first():
+    labels = [0, 0, 1, 1, 0, 1, 1]
+    text = ["a", "b", "c", "d", "e", "f", "g"]
+    dup_gids = [10, 10, 11, 12, 12, 13, 13]
+    ds = Dataset.from_dict(
+        {
+            "text": text,
+            "label": labels,
+            "dup_gid": dup_gids,
+        }
+    )
+    deduped_ds = dedup_dataset_keep_first(ds, "dup_gid")
+
+    assert len(deduped_ds) == 4
+    assert deduped_ds["dup_gid"] == [10, 11, 12, 13]
+    assert deduped_ds["text"] == ["a", "c", "d", "f"]
