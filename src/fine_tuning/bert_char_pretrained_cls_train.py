@@ -48,17 +48,13 @@ from training_pipeline.cls_trainer import (
     ROCCurveCallback,
 )
 from training_pipeline.utils import stratified_subsets, EvalSubsetCallback
-import pyarrow as pa
-from datasets import Value
-import pyarrow.compute as pc
-from datasets import Dataset
 
 BASE = Path(__file__).parent.parent.parent
 
 
 @hydra.main(
     config_path=str(Path(__file__).parent.parent.parent / "configs"),
-    config_name="cls_char_rand_init",
+    config_name="cls_char_pretrained",
     version_base="1.3",
 )
 @add_parent_resolver
@@ -93,11 +89,9 @@ def main(cfg: DictConfig):
         vocab_size=tokenizer.vocab_size,
         **OmegaConf.to_container(cfg.model_config, resolve=True),
     )
-    model = BertForSequenceClassification._from_config(
-        BertConfig(
-            vocab_size=tokenizer.vocab_size,
-            **OmegaConf.to_container(cfg.model_config, resolve=True),
-        )
+    print(OmegaConf.to_container(cfg.paths, resolve=True))
+    model = BertForSequenceClassification.from_pretrained(
+        pretrained_model_name_or_path=cfg.paths.model
     )
 
     builder = CLSDatasetBuilder(

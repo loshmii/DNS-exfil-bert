@@ -2,7 +2,7 @@ defaults:
   - _self_
   - paths
   - tokenizer: char
-  - training_arguments: args_for_bpe8k_reg_dataset_train_run
-  - dataset: dataset_for_mlm
+  - training_arguments: args_char_pretrained
+  - dataset: dataset_pretrained_cls
   - model: bert_for_cls
   - model_config: bert_char_reg_data_cfg

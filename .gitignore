@@ -8,6 +8,10 @@ __pycache__/
 
 /data/
 
+!data/processed/subset/train_100k.csv
+!data/processed/subset/val_100k.csv
+!data/processed/subset/test_100k.csv
+
 !tests/data/
 !tests/data/**/
 

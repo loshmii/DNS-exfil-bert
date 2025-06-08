@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any, Tuple
 
@@ -290,13 +290,15 @@ class MLMDatasetBuilder(DnsDatasetBuilder):
         pass  # Not implemented for MLM task, as it is not needed
 
 
+@dataclass
 class CLSDatasetBuilder(DnsDatasetBuilder):
-    label2id: Optional[Dict[str, int]] = None
-    label2id = {
-        "0": 0,
-        "1": 1,
-    }
-    _dup_weight_map: Optional[Dict[int, float]] = None
+    label2id: Dict[str, int] = field(
+        default_factory=lambda: {"0": 0, "1": 1}, init=False
+    )
+    _dup_weight_map: Optional[Dict[int, float]] = field(
+        default=None, init=False
+    )
+    dedup_train: bool = field(default=True, kw_only=True)
 
     def _populate_weight_map(self, cache_dir):
         weight_file = Path(cache_dir) / "dup_gid_sqrt_freq.pt"
@@ -340,6 +342,13 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
         return ds.remove_columns(columns_to_drop)
 
     def _postprocess(self, ds: DatasetDict) -> DatasetDict:
+        if self.dedup_train:
+            ds["train"] = (
+                dedup_dataset_keep_first(  # TODO : fix this!!!!!!!!!! Need to find a way not to deduplicate but to keep some skewness
+                    ds["train"],
+                    dedup_column="dup_gid",
+                )
+            )
         cache_path = (
             Path(self.cache_dir) if self.cache_dir else Path(".tmp_weights")
         )
@@ -357,13 +366,13 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
                 batched=False,
             )
 
-        ds['validation'] = dedup_dataset_keep_first(
-            ds['validation'],
-            dedup_column='dup_gid',
+        ds["validation"] = dedup_dataset_keep_first(
+            ds["validation"],
+            dedup_column="dup_gid",
         )
-        ds['test'] = dedup_dataset_keep_first(
-            ds['test'],
-            dedup_column='dup_gid',
+        ds["test"] = dedup_dataset_keep_first(
+            ds["test"],
+            dedup_column="dup_gid",
         )
 
         ds = DatasetDict(
@@ -384,9 +393,7 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
         )
         return ds.remove_columns(["special_tokens_mask"])
 
-    def get_class_weights(
-        self
-    ) -> torch.Tensor:
+    def get_class_weights(self) -> torch.Tensor:
         if self.ds is None:
             self.build()
 
@@ -423,13 +430,16 @@ def main(cfg: DictConfig):
     ds = mlm_builder.build()
     print(ds["train"][0])"""
 
-    cls_builder = CLSDatasetBuilder(
+    print(OmegaConf.to_container(cfg.dataset.CLS_builder_args, resolve=True))
+
+    """cls_builder = CLSDatasetBuilder(
         tokenizer=tokenizer,
         **OmegaConf.to_container(cfg.dataset.CLS_builder_args, resolve=True),
     )
     ds = cls_builder.build()
+    print(len(ds['train']))
     print(len(ds['validation']))
-    print(len(ds['test']))
+    print(len(ds['test']))"""
 
 
 if __name__ == "__main__":

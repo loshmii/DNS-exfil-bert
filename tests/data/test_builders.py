@@ -159,6 +159,7 @@ def test_clsdatasetbuilder_preprocess_and_postprocess(dummy_csv_cls, tmp_path):
         streaming=False,
         max_length=max_len,
         cache_dir=str(cache_dir),
+        dedup_train=False,
     )
 
     ds = builder.build()

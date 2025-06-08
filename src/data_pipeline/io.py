@@ -640,8 +640,4 @@ if __name__ == "__main__":
         OUT_DIR / "all.csv",
         MLM_DIR,
     )
-    build_cls_csvs_one_file(
-        OUT_DIR / "all.csv",
-        CLS_DIR,
-        seed=0
-    )
+    build_cls_csvs_one_file(OUT_DIR / "all.csv", CLS_DIR, seed=0)

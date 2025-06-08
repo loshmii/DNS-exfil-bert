@@ -1,0 +1,51 @@
+trainer_args:
+  output_dir: ${paths.output_dir}
+  overwrite_output_dir: true
+
+  per_device_train_batch_size: 64
+  per_device_eval_batch_size: 128
+  gradient_accumulation_steps: 1
+  dataloader_num_workers: 8
+
+  optimizer_type: adamw
+  learning_rate: 3e-4
+  weight_decay: 0.05
+  max_grad_norm: 1.0
+
+  lr_scheduler_type: cosine
+  warmup_steps: 20000
+
+  max_steps: 300000
+  num_train_epochs: 1
+
+  bf16: true
+  fp16: false
+
+  logging_strategy: steps
+  logging_steps: 1000
+  eval_strategy: steps
+  eval_steps: 5000
+  save_strategy: steps
+  save_steps: 10000
+  save_total_limit: 3
+  report_to: tensorboard
+  logging_dir: ${paths.tensorboard}
+
+  label_smoothing_factor: 0.0
+  gradient_checkpointing: false
+  torch_compile: false
+
+mask_args:
+  mlm_probability: 0.15
+  strategy: token
+  span_lambda: 3.0
+  seed: 42
+MLM_collator_args:
+  pad_to_multiple_of: 8
+  mask_token_prob: 0.8
+  random_token_prob: 0.1
+CLS_collator_args:
+  pad_to_multiple_of: 8
+  label_key: label
+  convert_to_one_hot: false
+  num_labels: 2
