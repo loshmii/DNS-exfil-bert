@@ -217,7 +217,7 @@ class CLSTrainer(Trainer):
 
         return DataLoader(
             self.train_dataset,
-            sampler=sampler,
+            sampler=None, #TODO: add sampler if convergence issues get resolved
             batch_size=self._train_batch_size,
             collate_fn=self.data_collator,
             num_workers=self.args.dataloader_num_workers,

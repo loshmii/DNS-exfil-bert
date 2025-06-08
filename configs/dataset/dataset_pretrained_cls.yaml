@@ -26,4 +26,4 @@ CLS_builder_args:
   max_length: 512
   cache_dir: ${paths.root}/experiments/cache/cls
   force_rebuild: false
-  dedup_train: true
+  dedup_train: false

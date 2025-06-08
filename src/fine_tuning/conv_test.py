@@ -48,13 +48,14 @@ from training_pipeline.cls_trainer import (
     ROCCurveCallback,
 )
 from training_pipeline.utils import stratified_subsets, EvalSubsetCallback
+from sklearn.utils.class_weight import compute_class_weight
 
 BASE = Path(__file__).parent.parent.parent
 
 
 @hydra.main(
     config_path=str(Path(__file__).parent.parent.parent / "configs"),
-    config_name="cls_char_pretrained",
+    config_name="cls_conv_test",
     version_base="1.3",
 )
 @add_parent_resolver
@@ -67,7 +68,7 @@ def main(cfg: DictConfig):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     root = logging.getLogger()
-    for h in root.handlers:
+    for h in list(root.handlers):
         root.removeHandler(h)
 
     root.setLevel(logging.INFO)
@@ -75,8 +76,10 @@ def main(cfg: DictConfig):
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
-    ch = logging.FileHandler(str(output_dir / "train.log"), mode="w")
-    ch.setFormatter(formatter)
+    ch = logging.FileHandler(
+        str(output_dir / "training.log"), mode="w"
+    )
+    ch.setLevel(logging.INFO)
     root.addHandler(ch)
 
     tokenizer = CharTokenizer(
@@ -85,13 +88,13 @@ def main(cfg: DictConfig):
         )
     )
 
-    model_config = BertConfig(
-        vocab_size=tokenizer.vocab_size,
+    model_cfg =BertConfig(
         **OmegaConf.to_container(cfg.model_config, resolve=True),
+        vocab_size=tokenizer.vocab_size,
     )
-    print(OmegaConf.to_container(cfg.paths, resolve=True))
-    model = BertForSequenceClassification.from_pretrained(
-        pretrained_model_name_or_path=cfg.paths.model
+
+    model = BertForSequenceClassification._from_config(
+        model_cfg
     )
 
     builder = CLSDatasetBuilder(
@@ -101,26 +104,24 @@ def main(cfg: DictConfig):
     ds = builder.build()
 
     model.config._dup_weight_map = builder.get_dup_weight_map()
-    weights = builder.get_class_weights()
 
-    train_ds = ds["train"]
-    train_ds = stratified_subsets(
-        train_ds,
-        num_subsets=1000,
-        seed=0,
-    )[0]
-    eval_ds = ds["validation"]
-    eval_ds = stratified_subsets(
-        eval_ds,
-        num_subsets=1000,
-        seed=0,
-    )[0]
-    test_ds = ds["test"]
-    test_ds = stratified_subsets(
-        test_ds,
-        num_subsets=1000,
-        seed=0,
-    )[0] #TODO: testing for convergence, will revert to full sets if no issues
+    pos_idx = np.where(ds['train']['label'] == 1)[0][:256]
+    neg_idx = np.where(ds['train']['label'] == 0)[0][:256]
+    toy_idx = np.concatenate([pos_idx, neg_idx])
+    rng = np.random.default_rng(42)
+    rng.shuffle(toy_idx)
+
+    toy_train = ds['train'].select(toy_idx)
+    toy_eval = toy_train
+
+    train_args.learning_rate = 1e-4
+    train_args.per_device_train_batch_size = 32
+    train_args.label_smoothing_factor = 0.0
+    train_args.lr_scheduler_type = "infinite"
+    train_args.warmup_steps = 10
+    train_args.max_steps = 200
+    train_args.logging_steps = 10
+    train_args.eval_steps = 50
 
     data_collator = DnsDataCollatorForCLC(
         tokenizer=tokenizer,
@@ -129,47 +130,38 @@ def main(cfg: DictConfig):
         ),
     )
 
-    writer = SummaryWriter(log_dir=str(train_args.logging_dir))
+    labels = np.asarray(toy_train['label'])
+    class_weights = compute_class_weight(
+        class_weight='balanced',
+        classes=np.unique(labels),
+        y=labels
+    )
+    print(f"Class weights: {class_weights}")
+    print(train_args)
+    print(OmegaConf.to_container(cfg, resolve=True))
 
     trainer = CLSTrainer(
         model=model,
         args=train_args,
-        class_weights=weights,
-        train_dataset=train_ds,
-        eval_dataset=eval_ds,
-        processing_class=tokenizer,
+        train_dataset=toy_train,
+        eval_dataset=toy_eval,
         data_collator=data_collator,
+        processing_class=tokenizer,
         callbacks=[
-            FileLoggingCallback(),
+            FileLoggingCallback()
         ],
         compute_metrics=None,
     )
 
     roc_cb = ROCCurveCallback(
-        writer=writer,
+        writer=SummaryWriter(
+            str(train_args.logging_dir)
+        ),
         trainer=trainer,
     )
     trainer.add_callback(roc_cb)
-    """trainer.add_callback(
-        EvalSubsetCallback(
-            trainer=trainer, 
-            subsets=eval_subsets,
-        )
-    )"""
 
     trainer.train()
-    #TODO : fix the file after test
-
-    loss = trainer.evaluate(
-        eval_dataset=test_ds,
-        metric_key_prefix="test",
-    )
-
-    trainer.save_model(
-        output_dir=str(output_dir / "model"),
-    )
-    trainer.save_state()
-
 
 if __name__ == "__main__":
     main()

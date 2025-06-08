@@ -148,7 +148,7 @@ class DnsDatasetBuilder(ABC):
         ds_dict = ds_dict.map(
             self._tokenize,
             batched=True,
-            num_proc=16 if os.cpu_count() >= 16 else 4,
+            num_proc=64 if os.cpu_count() > 64 else 1,
             remove_columns=["text"],
         )
         ds_dict = self._postprocess(ds_dict)
@@ -362,7 +362,7 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
 
             ds["train"] = ds["train"].map(
                 add_weight,
-                num_proc=16 if os.cpu_count() >= 16 else 4,
+                num_proc=64 if os.cpu_count() > 64 else 1,
                 batched=False,
             )
 
@@ -405,6 +405,7 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
             classes=classes,
             y=labels,
         )
+        weights = np.clip(weights, a_min=1.0, a_max=10.0) #TODO: make it configurable
         weights_tensor = torch.tensor(weights, dtype=torch.float)
         return weights_tensor
 

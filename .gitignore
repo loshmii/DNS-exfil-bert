@@ -34,3 +34,5 @@ document.md
 
 tests/data/test_dup_gid_roundtrip.py
 tests/data/__pycache__/
+
+AGENTS.md
