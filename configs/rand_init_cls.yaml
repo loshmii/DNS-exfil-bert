@@ -5,4 +5,4 @@ defaults:
   - training_arguments: args_char_rand_init
   - dataset: dataset_rand_init_cls
   - model: bert_for_cls
-  - model_config: bert_config_from_pretrained
+  - model_config: bert_char_reg_data_cfg

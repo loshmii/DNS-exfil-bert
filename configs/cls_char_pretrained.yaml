@@ -2,7 +2,7 @@ defaults:
   - _self_
   - paths
   - tokenizer: char
-  - training_arguments: args_char_pretrained
+  - training_arguments: args_char_rand_init
   - dataset: dataset_pretrained_cls
   - model: bert_for_cls
   - model_config: bert_char_reg_data_cfg

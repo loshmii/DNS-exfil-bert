@@ -28,6 +28,20 @@ class MLMTrainingArguments(TrainingArguments):
         },
     )
 
+    use_duplicate_weights: bool = field(
+        default=True,
+        metadata={
+            "help": "If True, use duplicate group weights during training."
+        }
+    )
+
+    use_class_weights: bool = field(
+        default=False,
+        metadata={
+            "help": "If True, use class weights during training."
+        }
+    )
+
     optimizer_type: str = field(
         default="adamw",
         metadata={"help": "The type of optimizer to use. adamw | adafactor"},

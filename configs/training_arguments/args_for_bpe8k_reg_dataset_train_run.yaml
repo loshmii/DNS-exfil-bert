@@ -34,6 +34,9 @@ trainer_args:
 
   gradient_checkpointing: false
   torch_compile: false
+  use_duplicate_weights: false
+  use_class_weights: false
+  
 mask_args:
   mlm_probability: 0.15
   strategy: token

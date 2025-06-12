@@ -330,6 +330,7 @@ def raw_to_normalized_csv(
 def raw_to_normalized_csv_one_file(
     raw_base: Union[str, Path],
     out_base: Union[str, Path],
+    prefix: str = "all",
 ):
     raw_base = Path(raw_base)
     out_base = Path(out_base)
@@ -368,7 +369,7 @@ def raw_to_normalized_csv_one_file(
 
     print(f"Writing to {out_base / 'all.csv'}")
     df_copy.to_csv(
-        out_base / "all.csv",
+        out_base / f"{prefix}.csv",
         index=False,
         encoding="utf-8",
     )
@@ -624,20 +625,21 @@ if __name__ == "__main__":
         out_base_csv / "original",
         out_base_csv,
     )"""
-    RAW_DIR = Path("/home/milos.tomic.etf/Downloads/data/raw_data.csv")
+    RAW_DIR = Path("/home/milos.tomic.etf/Downloads/data/dup_capped_data_wo_antiv.csv")
     OUT_DIR = Path("/home/milos.tomic.etf/Downloads/data/new_processed")
     MLM_DIR = Path(
-        "/home/milos.tomic.etf/projects/DNS-exfil-bert/data/processed"
+        "/home/milos.tomic.etf/projects/DNS-exfil-bert/data/processed_antiv"
     )
     CLS_DIR = Path(
-        "/home/milos.tomic.etf/projects/DNS-exfil-bert/data/processed"
+        "/home/milos.tomic.etf/projects/DNS-exfil-bert/data/processed_antiv"
     )
-    raw_to_normalized_csv_one_file(
+    """raw_to_normalized_csv_one_file(
         RAW_DIR,
         OUT_DIR,
-    )
+        prefix="wo_antiv",
+    )"""
     build_mlm_csvs_one_file(
-        OUT_DIR / "all.csv",
+        OUT_DIR / "wo_antiv.csv",
         MLM_DIR,
     )
-    build_cls_csvs_one_file(OUT_DIR / "all.csv", CLS_DIR, seed=0)
+    build_cls_csvs_one_file(OUT_DIR / "wo_antiv.csv", CLS_DIR, seed=0)

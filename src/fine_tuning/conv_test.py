@@ -103,7 +103,10 @@ def main(cfg: DictConfig):
     )
     ds = builder.build()
 
-    model.config._dup_weight_map = builder.get_dup_weight_map()
+    if train_args.use_duplicate_weights:
+        model.config._dup_weight_map = builder.get_dup_weight_map()
+    
+    weights = builder.get_class_weights() if train_args.use_class_weights else None
 
     pos_idx = np.where(ds['train']['label'] == 1)[0][:256]
     neg_idx = np.where(ds['train']['label'] == 0)[0][:256]
@@ -117,7 +120,7 @@ def main(cfg: DictConfig):
     train_args.learning_rate = 1e-4
     train_args.per_device_train_batch_size = 32
     train_args.label_smoothing_factor = 0.0
-    train_args.lr_scheduler_type = "infinite"
+    train_args.lr_scheduler_type = "linear"
     train_args.warmup_steps = 10
     train_args.max_steps = 200
     train_args.logging_steps = 10
@@ -130,13 +133,6 @@ def main(cfg: DictConfig):
         ),
     )
 
-    labels = np.asarray(toy_train['label'])
-    class_weights = compute_class_weight(
-        class_weight='balanced',
-        classes=np.unique(labels),
-        y=labels
-    )
-    print(f"Class weights: {class_weights}")
     print(train_args)
     print(OmegaConf.to_container(cfg, resolve=True))
 

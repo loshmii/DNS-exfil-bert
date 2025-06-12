@@ -68,6 +68,12 @@ class DnsDatasetBuilder(ABC):
     seed: Optional[int] = 42
     ds: Optional[Union[DatasetDict, IterableDatasetDict]] = None
 
+    @abstractmethod
+    def return_suffix(self) -> str:
+        raise NotImplementedError(
+            "This method should return the name of the subclass."
+        )
+
     def __post_init__(self):
         if not self.max_length:
             self.max_length = self.tokenizer.model_max_length
@@ -268,6 +274,9 @@ class DnsDatasetBuilder(ABC):
 
 class MLMDatasetBuilder(DnsDatasetBuilder):
 
+    def return_suffix(self) -> str:
+        return "mlm"
+
     def _preprocess(self, ds: DatasetDict) -> DatasetDict:
         return ds
 
@@ -299,6 +308,9 @@ class CLSDatasetBuilder(DnsDatasetBuilder):
         default=None, init=False
     )
     dedup_train: bool = field(default=True, kw_only=True)
+
+    def return_suffix(self) -> str:
+        return "cls"
 
     def _populate_weight_map(self, cache_dir):
         weight_file = Path(cache_dir) / "dup_gid_sqrt_freq.pt"
@@ -423,24 +435,24 @@ def main(cfg: DictConfig):
         )
     )
 
-    """mlm_builder = MLMDatasetBuilder(
+    mlm_builder = MLMDatasetBuilder(
         tokenizer=tokenizer,
         **OmegaConf.to_container(cfg.dataset.MLM_builder_args, resolve=True),
     )
 
     ds = mlm_builder.build()
-    print(ds["train"][0])"""
+    print(ds["train"][0])
 
     print(OmegaConf.to_container(cfg.dataset.CLS_builder_args, resolve=True))
 
-    """cls_builder = CLSDatasetBuilder(
+    cls_builder = CLSDatasetBuilder(
         tokenizer=tokenizer,
         **OmegaConf.to_container(cfg.dataset.CLS_builder_args, resolve=True),
     )
     ds = cls_builder.build()
     print(len(ds['train']))
     print(len(ds['validation']))
-    print(len(ds['test']))"""
+    print(len(ds['test']))
 
 
 if __name__ == "__main__":

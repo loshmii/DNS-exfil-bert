@@ -401,8 +401,8 @@ def main(cfg: DictConfig):
     ds = builder.build()
 
     train_ds = ds["train"].select(range(1))
-    eval_ds = ds["validation"].select(range(1))
-    test_ds = ds["test"].select(range(1))
+    eval_ds = train_ds
+    test_ds = train_ds
 
     mask_sampler = MaskSampler(
         **OmegaConf.to_container(

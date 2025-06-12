@@ -191,7 +191,10 @@ class CLSTrainer(Trainer):
         self.auroc.update(probs, labels)
 
     def get_train_dataloader(self):
-        if "dup_gid" in self.train_dataset.column_names:
+        if (
+            self.args.use_duplicate_weights
+            and "dup_gid" in self.train_dataset.column_names
+        ):
             dup_gids = [int(x) for x in self.train_dataset["dup_gid"]]
             gid_to_idx = defaultdict(list)
             for idx, gid in enumerate(dup_gids):
@@ -217,7 +220,7 @@ class CLSTrainer(Trainer):
 
         return DataLoader(
             self.train_dataset,
-            sampler=None, #TODO: add sampler if convergence issues get resolved
+            sampler=sampler,
             batch_size=self._train_batch_size,
             collate_fn=self.data_collator,
             num_workers=self.args.dataloader_num_workers,
@@ -483,8 +486,10 @@ def main(cfg: DictConfig):
     )
     ds = builder.build()
 
-    model.config._dup_weight_map = builder.get_dup_weight_map()
-    weights = builder.get_class_weights()
+    if train_args.use_duplicated_weights:
+        model.config._dup_weight_map = builder.get_dup_weight_map()
+    
+    weights = builder.get_class_weights() if train_args.use_duplicated_weights else None
 
     train_ds = ds["train"].select(range(5))
     eval_ds = ds["validation"].select(range(4))

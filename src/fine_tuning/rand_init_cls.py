@@ -58,7 +58,7 @@ BASE = Path(__file__).parent.parent.parent
 
 @hydra.main(
     config_path=str(Path(__file__).parent.parent.parent / "configs"),
-    config_name="cls_char_rand_init",
+    config_name="rand_init_cls",
     version_base="1.3",
 )
 @add_parent_resolver
@@ -112,6 +112,11 @@ def main(cfg: DictConfig):
     train_ds = ds["train"]
     eval_ds = ds["validation"]
     test_ds = ds["test"]
+
+    if train_args.use_duplicate_weights:
+        model.config._dup_weight_map = builder.get_dup_weight_map()
+    
+    weights = builder.get_class_weights() if train_args.use_class_weights else None
 
     eval_subsets = stratified_subsets(
         eval_ds,

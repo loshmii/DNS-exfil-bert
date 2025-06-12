@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 from datasets import Dataset
-from transformers.training_args import TrainingArguments
+from training_pipeline.arguments import MLMTrainingArguments
 from transformers.modeling_outputs import SequenceClassifierOutput
 from training_pipeline.cls_trainer import CLSTrainer
 from training_pipeline.data_collator import DnsDataCollatorForCLC
@@ -64,7 +64,7 @@ def make_trainer(dataset: Dataset, *, tmp_dir: str) -> CLSTrainer:
     collator = DnsDataCollatorForCLC(tokenizer=tokenizer)
     model = DummyModel()
 
-    args = TrainingArguments(
+    args = MLMTrainingArguments(
         output_dir=tmp_dir,
         per_device_train_batch_size=2,
         per_device_eval_batch_size=2,
@@ -72,6 +72,7 @@ def make_trainer(dataset: Dataset, *, tmp_dir: str) -> CLSTrainer:
         do_train=False,
         disable_tqdm=True,
         report_to=["none"],
+        use_duplicate_weights=True,
     )
 
     model.config._dup_weight_map = {10: math.sqrt(1), 11: math.sqrt(1)}
@@ -91,7 +92,7 @@ def test_sampler_is_group_weighted(tmp_path):
     trainer = make_trainer(ds, tmp_dir=str(tmp_path))
 
     loader = trainer.get_train_dataloader()
-    assert True
+    assert isinstance(loader.sampler, GroupWeightedRandomSampler)
     #assert isinstance(loader.sampler, GroupWeightedRandomSampler) #TODO: Fix this assertion when GroupWeightedRandomSampler is brought back
 
 

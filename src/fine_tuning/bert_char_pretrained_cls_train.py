@@ -100,27 +100,23 @@ def main(cfg: DictConfig):
     )
     ds = builder.build()
 
+    train_ds = ds["train"]
+    eval_ds = ds["validation"]
+    test_ds = ds["test"]
+
+    eval_subsets = stratified_subsets(
+        eval_ds,
+        num_subsets=2,
+        seed=0,
+    )
+
     model.config._dup_weight_map = builder.get_dup_weight_map()
     weights = builder.get_class_weights()
 
-    train_ds = ds["train"]
-    train_ds = stratified_subsets(
-        train_ds,
-        num_subsets=1000,
-        seed=0,
-    )[0]
-    eval_ds = ds["validation"]
-    eval_ds = stratified_subsets(
-        eval_ds,
-        num_subsets=1000,
-        seed=0,
-    )[0]
-    test_ds = ds["test"]
-    test_ds = stratified_subsets(
-        test_ds,
-        num_subsets=1000,
-        seed=0,
-    )[0] #TODO: testing for convergence, will revert to full sets if no issues
+    if train_args.use_duplicate_weights:
+        model.config._dup_weight_map = builder.get_dup_weight_map()
+
+    weights = builder.get_class_weights() if train_args.use_class_weights else None
 
     data_collator = DnsDataCollatorForCLC(
         tokenizer=tokenizer,
@@ -150,15 +146,14 @@ def main(cfg: DictConfig):
         trainer=trainer,
     )
     trainer.add_callback(roc_cb)
-    """trainer.add_callback(
+    trainer.add_callback(
         EvalSubsetCallback(
             trainer=trainer, 
             subsets=eval_subsets,
         )
-    )"""
+    )
 
     trainer.train()
-    #TODO : fix the file after test
 
     loss = trainer.evaluate(
         eval_dataset=test_ds,
