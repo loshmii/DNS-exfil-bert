@@ -47,6 +47,7 @@ from collections import defaultdict
 from training_pipeline.utils import (
     stratified_subsets,
     EvalSubsetCallback,
+    stratified_subsamples
 )
 
 BASE = Path(__file__).parent.parent.parent.resolve()
@@ -191,6 +192,13 @@ class CLSTrainer(Trainer):
         self.auroc.update(probs, labels)
 
     def get_train_dataloader(self):
+        if getattr(self.args, "train_fraction", 1.0) < 1.0:
+            self.train_dataset = stratified_subsamples(
+                self.train_dataset,
+                fraction=self.args.train_fraction,
+                label_key="label",
+                seed=self.args.seed,
+            )
         if (
             self.args.use_duplicate_weights
             and "dup_gid" in self.train_dataset.column_names
@@ -448,6 +456,7 @@ class CLSTrainer(Trainer):
 def main(cfg: DictConfig):
 
     model_args, train_args = parse_dataclasses(cfg)
+    train_args.train_fraction = 0.5
 
     output_dir = Path(train_args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -486,12 +495,12 @@ def main(cfg: DictConfig):
     )
     ds = builder.build()
 
-    if train_args.use_duplicated_weights:
+    if train_args.use_duplicate_weights:
         model.config._dup_weight_map = builder.get_dup_weight_map()
     
-    weights = builder.get_class_weights() if train_args.use_duplicated_weights else None
+    weights = builder.get_class_weights() if train_args.use_duplicate_weights else None
 
-    train_ds = ds["train"].select(range(5))
+    train_ds = ds["train"].select(range(1))
     eval_ds = ds["validation"].select(range(4))
     test_ds = ds["test"].select(range(20))
 

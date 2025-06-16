@@ -42,6 +42,13 @@ class MLMTrainingArguments(TrainingArguments):
         }
     )
 
+    train_fraction: float = field(
+        default=1.0,
+        metadata={
+            "help": "Fraction of the training dataset to use. 1.0 means use the entire dataset."
+        },
+    )
+
     optimizer_type: str = field(
         default="adamw",
         metadata={"help": "The type of optimizer to use. adamw | adafactor"},
@@ -84,6 +91,10 @@ class MLMTrainingArguments(TrainingArguments):
         if self.torch_compile and not hasattr(torch, "compile"):
             raise ValueError(
                 "torch.compile is not available in this version of PyTorch."
+            )
+        if (0.0 < self.train_fraction <= 1.0) is False:
+            raise ValueError(
+                f"train_fraction must be between 0.0 and 1.0, got {self.train_fraction}."
             )
 
 

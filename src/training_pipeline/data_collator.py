@@ -105,7 +105,7 @@ class DnsDataCollatorForMLM:
 class DnsDataCollatorForCLC:
     tokenizer: PreTrainedTokenizerFast
     pad_to_multiple_of: Optional[int] = 8
-    label_key: str = "labels"
+    label_key: str = "label"
     convert_to_one_hot: bool = False
     num_labels: Optional[int] = None
     dtype: torch.dtype = torch.long

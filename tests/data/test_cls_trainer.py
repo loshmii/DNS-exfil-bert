@@ -45,10 +45,21 @@ def make_dataset(with_dup_gid: bool = True) -> Dataset:
     data = {
         "input_ids": [[1], [2]],
         "attention_mask": [[1], [1]],
-        "labels": [0, 1],
+        "label": [0, 1],
     }
     if with_dup_gid:
         data["dup_gid"] = [10, 11]
+    return Dataset.from_dict(data)
+
+def make_big_dataset():
+    dup_gid = [i // 2 for i in range(20)]
+    labels = [i % 2 for i in range(20)]
+    data = {
+        "input_ids": [[i+1] for i in range(20)],
+        "attention_mask": [[1] for _ in range(20)],
+        "label": labels,
+        "dup_gid": dup_gid,
+    }
     return Dataset.from_dict(data)
 
 
@@ -59,7 +70,7 @@ def patch_collator_post_init(monkeypatch):
     )
 
 
-def make_trainer(dataset: Dataset, *, tmp_dir: str) -> CLSTrainer:
+def make_trainer(dataset: Dataset, *, tmp_dir: str, fraction: float = 0.5) -> CLSTrainer:
     tokenizer = DummTokenizer()
     collator = DnsDataCollatorForCLC(tokenizer=tokenizer)
     model = DummyModel()
@@ -73,9 +84,13 @@ def make_trainer(dataset: Dataset, *, tmp_dir: str) -> CLSTrainer:
         disable_tqdm=True,
         report_to=["none"],
         use_duplicate_weights=True,
+        train_fraction=fraction,
+        seed=0,
     )
 
-    model.config._dup_weight_map = {10: math.sqrt(1), 11: math.sqrt(1)}
+    model.config._dup_weight_map = {
+        gid: 1.0 for gid in set(dataset["dup_gid"])
+    }
 
     return CLSTrainer(
         model=model,
@@ -137,3 +152,21 @@ def test_logits_and_labels_values(tmp_path):
     np.testing.assert_array_equal(
         np.array(trainer._last_eval_labels, dtype=np.int64), labels
     )
+
+@pytest.mark.parametrize("fraction", [0.25, 0.5])
+def test_train_fraction_subsampling(tmp_path, fraction):
+    ds = make_big_dataset()
+    trainer = make_trainer(ds, tmp_dir=str(tmp_path), fraction=fraction)
+
+    loader = trainer.get_train_dataloader()
+
+    n_pos, n_neg = Counter(ds['label'])[1], Counter(ds['label'])[0]
+    exp_rows = round(n_pos * fraction) + round(n_neg * fraction)
+    assert len(loader.dataset) == exp_rows
+
+    new_counts = Counter(loader.dataset['label'])
+    assert new_counts[0] == round(n_neg * fraction)
+    assert new_counts[1] == round(n_pos * fraction)
+
+    sampled_idx = list(iter(loader.sampler))
+    assert all (0 <= i < len(trainer.train_dataset) for i in sampled_idx)

@@ -3,6 +3,8 @@ from datasets import Dataset
 from transformers import TrainerCallback, TrainerControl, TrainerState
 from typing import List, Any
 import pyarrow as pa
+import pyarrow.compute as pc
+import pandas as pd
 
 
 def dedup_dataset_keep_first(
@@ -54,6 +56,49 @@ def stratified_subsets(
         subsets.append(dataset.select(idx))
     return subsets
 
+def stratified_subsamples(
+    dataset: Dataset,
+    fraction: float =  0.1,
+    label_key: str = "label",
+    seed: int = 42,
+):
+    tbl = dataset.data.table
+    tbl = tbl.append_column(
+        "row_id", pa.array(np.arange(tbl.num_rows, dtype=np.int64))
+    )
+
+    grouped = tbl.group_by(["dup_gid", label_key]).aggregate(
+        [("row_id", "list"), (label_key, "count")])
+    
+    meta = grouped.to_pandas()
+    
+    total_pos = meta.loc[meta[label_key] == 1, f"{label_key}_count"].sum()
+    total_neg = meta.loc[meta[label_key] == 0, f"{label_key}_count"].sum()
+    target = {
+        0 : max(1,int(round(total_neg * fraction))),
+        1 : max(1,int(round(total_pos * fraction)))
+    }
+
+    rng = np.random.default_rng(seed)
+    keep_row_ids = []
+    meta = meta.sample(frac=1, random_state=seed)
+    consumed = {0: 0, 1: 0}
+
+    for _, row in meta.iterrows():
+        lbl = row[label_key]
+        if consumed[lbl] >= target[lbl]:
+            continue
+        need = min(target[lbl] - consumed[lbl], len(row["row_id_list"]))
+        chosen = rng.choice(
+            row["row_id_list"], size = need, replace=False
+        )
+        keep_row_ids.extend(chosen)
+        consumed[lbl] += need
+        if all(consumed[l] >= target[l] for l in target):
+            break
+
+    return dataset.select(keep_row_ids).shuffle(seed=seed)
+    
 
 class EvalSubsetCallback(TrainerCallback):
     def __init__(self, trainer, subsets: List[Dataset]):
@@ -74,3 +119,15 @@ class EvalSubsetCallback(TrainerCallback):
             self._idx = (self._idx + 1) % len(self.subsets)
             self.trainer.eval_dataset = self.subsets[self._idx]
         return control
+
+if __name__ == "__main__":
+    data = {
+        "text": ["a", "b", "c", "a", "b", "c"],
+        "labels": [0, 1, 0, 1, 0, 1],
+        "dup_gid": [1, 1, 2, 1, 1, 2]
+    }
+    df = pd.DataFrame(data)
+    dataset = Dataset.from_pandas(df)
+
+    dataset = stratified_subsamples(dataset, fraction=1.0, label_key='labels', seed=42)
+    print(dataset['labels'])
