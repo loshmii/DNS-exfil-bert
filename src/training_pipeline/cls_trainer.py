@@ -193,11 +193,16 @@ class CLSTrainer(Trainer):
 
     def get_train_dataloader(self):
         if getattr(self.args, "train_fraction", 1.0) < 1.0:
+            print(f"Initial dataset size: {len(self.train_dataset)}")
             self.train_dataset = stratified_subsamples(
                 self.train_dataset,
                 fraction=self.args.train_fraction,
                 label_key="label",
                 seed=self.args.seed,
+            )
+            print(
+                f"Using {len(self.train_dataset)} samples for training "
+                f"(fraction: {self.args.train_fraction})"
             )
         if (
             self.args.use_duplicate_weights

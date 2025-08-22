@@ -36,6 +36,7 @@ trainer_args:
   torch_compile: false
   use_duplicate_weights: false
   use_class_weights: false
+  train_fraction: 1.0
 
 mask_args:
   mlm_probability: 0.15
